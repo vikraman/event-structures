@@ -1,5 +1,10 @@
 title: Formalisation of Event Structures
 email: git@vikraman.org
-url: https://vikraman.github.io/event-structures
+description: >
+  Formalisation of Event Structures and Causal-Consistency in Lean
+github: [metadata]
 github_username: vikraman
-theme: minima
+repository: vikraman/event-structures
+
+plugins:
+  - jekyll-github-metadata

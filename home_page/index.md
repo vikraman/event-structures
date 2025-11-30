@@ -1,10 +1,11 @@
 ---
-title: "Formalisation of Event Structures"
+layout: default
 ---
 
-Formalisation of Event Structures and Causal-Consistency in Lean
+Links:
 
-* [GitHub Repository](https://github.com/vikraman/event-structures)
-* [Blueprint](/blueprint/)
-* [Blueprint as pdf](/blueprint.pdf)
-* [Documentation](/docs/)
+* [GitHub repository]({{ site.github.repository_url }})
+* [Blueprint]({{ site.url }}/blueprint/)
+* [Blueprint as pdf]({{ site.url }}/blueprint.pdf)
+* [Dependency graph]({{ site.url }}/blueprint/dep_graph_document.html)
+* [Doc pages for this repository]({{ site.url }}/docs/)
