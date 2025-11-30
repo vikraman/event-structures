@@ -1,8 +1,6 @@
 import EventStructures.Basic
 import Mathlib.Data.Finset.Basic
 
-namespace Configuration
-
 variable (es : EventStructure)
 
 /-- A set of events is a configuration if it is conflict-free and downward closed. -/
@@ -15,6 +13,8 @@ def Conf : Type := {X : Set es.Event // isConf es X}
 
 /-- Type of all finite configurations of an event structure. -/
 def FinConf : Type := {X : Finset es.Event // isConf es (X : Set es.Event)}
+
+namespace Configuration
 
 /-- A configuration c enables an event e if e is consistent with all events in c
     and the past of e is contained in c. -/

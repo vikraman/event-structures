@@ -1,8 +1,6 @@
 import EventStructures.Basic
 import Mathlib.Algebra.Group.Defs
 
-namespace Trace
-
 variable (es : EventStructure)
 open EventStructure
 local infixl:50 " ⋈ " => es.concurrent
@@ -19,6 +17,8 @@ inductive TraceEquiv : List es.Event → List es.Event → Prop
 
 /-- Notation for trace equivalence. -/
 local infixr:60 " ≈ₜ " => TraceEquiv es
+
+namespace Trace
 
 /-- Trace equivalence is reflexive. -/
 lemma traceEquiv_refl : Reflexive (TraceEquiv es) :=
