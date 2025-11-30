@@ -18,19 +18,22 @@ instance : PartialOrder es.Event := es.poEvent
 /-- Notation for the conflict relation. -/
 local infixl:50 " # " => es.conflict
 
-/-- Consistency relation between events: two events are consistent if they are not in conflict. -/
-@[simp] def consistent (e₁ e₂ : es.Event) : Prop := ¬ (e₁ # e₂)
+/-- Consistency relation: two events are consistent if they are not in conflict. -/
+@[simp]
+def consistent (e₁ e₂ : es.Event) : Prop := ¬ (e₁ # e₂)
 
 /-- Consistency is reflexive. -/
-lemma consistent_refl : Reflexive es.consistent :=
-  es.conflict_irrefl
+lemma consistent_refl : Reflexive es.consistent := es.conflict_irrefl
+
 /-- Consistency is symmetric. -/
 lemma consistent_symm : Symmetric es.consistent :=
   fun _ _ h h' => h (es.conflict_symm h')
 
-/- Concurrency relation between events:
-  two events are concurrent if they are consistent and causally independent. -/
-@[simp] def concurrent (e₁ e₂ : es.Event) : Prop := es.consistent e₁ e₂ ∧ ¬ (e₁ ≤ e₂) ∧ ¬ (e₂ ≤ e₁)
+/-- Concurrency relation: two events are concurrent if they are
+    consistent and causally independent. -/
+@[simp]
+def concurrent (e₁ e₂ : es.Event) : Prop :=
+  es.consistent e₁ e₂ ∧ ¬ (e₁ ≤ e₂) ∧ ¬ (e₂ ≤ e₁)
 local infixl:50 " ⋈ " => es.concurrent
 
 /-- Concurrency is irreflexive. -/

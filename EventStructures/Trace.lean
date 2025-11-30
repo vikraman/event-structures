@@ -1,4 +1,5 @@
 import EventStructures.Basic
+import Mathlib.Algebra.Group.Defs
 
 namespace Trace
 
@@ -27,21 +28,16 @@ lemma traceEquiv_refl : Reflexive (TraceEquiv es) :=
 lemma traceEquiv_trans : Transitive (TraceEquiv es) := by
   intro t₁ t₂ t₃ h₁₂ h₂₃
   induction h₁₂ with
-  | refl t => exact h₂₃
-  | swap ind h ih =>
-    exact TraceEquiv.swap ind (ih h₂₃)
+  | refl _ => exact h₂₃
+  | swap ind _ ih => exact TraceEquiv.swap ind (ih h₂₃)
 
 /-- Trace equivalence is symmetric. -/
 lemma traceEquiv_symm : Symmetric (TraceEquiv es) := by
   intro t₁ t₂ h
   induction h with
-  | refl t => exact TraceEquiv.refl t
-  | @swap e₁ e₂ t₁' t₂' t₃' ind h ih =>
-    -- ih: t₃' ≈ₜ (t₁' ++ e₁ :: e₂ :: t₂')
-    -- Goal: t₃' ≈ₜ (t₁' ++ e₂ :: e₁ :: t₂')
-    have step : (t₁' ++ e₁ :: e₂ :: t₂') ≈ₜ (t₁' ++ e₂ :: e₁ :: t₂') :=
-      TraceEquiv.swap (es.concurrent_symm ind) (TraceEquiv.refl _)
-    exact traceEquiv_trans es ih step
+  | refl _ => exact TraceEquiv.refl _
+  | @swap e₁ e₂ t₁' t₂' t₃' ind _ ih =>
+    exact traceEquiv_trans es ih (TraceEquiv.swap (es.concurrent_symm ind) (TraceEquiv.refl _))
 
 /-- Trace equivalence is an equivalence relation. -/
 instance : Equivalence (TraceEquiv es) where
@@ -57,33 +53,141 @@ instance : Trans (TraceEquiv es) (TraceEquiv es) (TraceEquiv es) where
 lemma traceEquiv_append_left {t₁ t₂ : List es.Event} (h : t₁ ≈ₜ t₂) (t : List es.Event) :
     (t ++ t₁) ≈ₜ (t ++ t₂) := by
   induction h generalizing t with
-  | refl t => exact TraceEquiv.refl _
-  | @swap e₁ e₂ t₁' t₂' t₃' ind h ih =>
-    -- h: (t₁' ++ e₁ :: e₂ :: t₂') ≈ₜ t₃'
-    -- Goal: (t ++ t₁' ++ e₂ :: e₁ :: t₂') ≈ₜ (t ++ t₃')
+  | refl _ => exact TraceEquiv.refl _
+  | @swap e₁ e₂ t₁' t₂' t₃' ind _ ih =>
     calc (t ++ (t₁' ++ e₂ :: e₁ :: t₂'))
-        = ((t ++ t₁') ++ e₂ :: e₁ :: t₂') := by simp [List.append_assoc]
+        = ((t ++ t₁') ++ e₂ :: e₁ :: t₂') := by simp
       _ ≈ₜ ((t ++ t₁') ++ e₁ :: e₂ :: t₂') := TraceEquiv.swap ind (TraceEquiv.refl _)
-      _ = (t ++ (t₁' ++ e₁ :: e₂ :: t₂')) := by simp [List.append_assoc]
+      _ = (t ++ (t₁' ++ e₁ :: e₂ :: t₂')) := by simp
       _ ≈ₜ (t ++ t₃') := ih t
 
 /-- Trace equivalence is a right congruence for append. -/
 lemma traceEquiv_append_right {t₁ t₂ : List es.Event} (h : t₁ ≈ₜ t₂) (t : List es.Event) :
     (t₁ ++ t) ≈ₜ (t₂ ++ t) := by
   induction h with
-  | refl t => exact TraceEquiv.refl _
-  | @swap e₁ e₂ t₁' t₂' t₃' ind h ih =>
-    -- h: (t₁' ++ e₁ :: e₂ :: t₂') ≈ₜ t₃'
-    -- Goal: (t₁' ++ e₂ :: e₁ :: t₂' ++ t) ≈ₜ (t₃' ++ t)
+  | refl _ => exact TraceEquiv.refl _
+  | @swap e₁ e₂ t₁' t₂' t₃' ind _ ih =>
     calc (t₁' ++ e₂ :: e₁ :: t₂' ++ t)
-        = (t₁' ++ e₂ :: e₁ :: (t₂' ++ t)) := by simp [List.append_assoc]
+        = (t₁' ++ e₂ :: e₁ :: (t₂' ++ t)) := by simp
       _ ≈ₜ (t₁' ++ e₁ :: e₂ :: (t₂' ++ t)) := TraceEquiv.swap ind (TraceEquiv.refl _)
-      _ = (t₁' ++ e₁ :: e₂ :: t₂' ++ t) := by simp [List.append_assoc]
+      _ = (t₁' ++ e₁ :: e₂ :: t₂' ++ t) := by simp
       _ ≈ₜ (t₃' ++ t) := ih
 
 /-- Trace equivalence is a congruence for append. -/
 lemma traceEquiv_append {t₁ t₂ t₃ t₄ : List es.Event}
     (h₁ : t₁ ≈ₜ t₂) (h₂ : t₃ ≈ₜ t₄) : (t₁ ++ t₃) ≈ₜ (t₂ ++ t₄) :=
   traceEquiv_trans es (traceEquiv_append_right es h₁ t₃) (traceEquiv_append_left es h₂ t₂)
+
+/-- Setoid instance for trace equivalence. -/
+instance traceEquivSetoid : Setoid (List es.Event) where
+  r := TraceEquiv es
+  iseqv := ⟨@traceEquiv_refl es, @traceEquiv_symm es, @traceEquiv_trans es⟩
+
+/-- The trace monoid: lists of events quotiented by trace equivalence. -/
+def TraceMonoid : Type := Quotient (traceEquivSetoid es)
+
+namespace Monoid
+
+/-- Lift a list to the trace monoid. -/
+def mk (t : List es.Event) : TraceMonoid es := Quotient.mk (traceEquivSetoid es) t
+
+/-- Multiplication in the trace monoid (concatenation of traces). -/
+instance : Mul (TraceMonoid es) where
+  mul := Quotient.lift₂ (fun t₁ t₂ => mk es (t₁ ++ t₂))
+    (fun _ _ _ _ h₁ h₂ => Quotient.sound (traceEquiv_append es h₁ h₂))
+
+/-- Identity element in the trace monoid (empty trace). -/
+instance : One (TraceMonoid es) where
+  one := mk es []
+
+/-- Left identity law for trace monoid. -/
+lemma one_mul (x : TraceMonoid es) : 1 * x = x := by
+  obtain ⟨t, rfl⟩ := Quotient.exists_rep x
+  change mk es ([] ++ t) = mk es t
+  simp
+
+/-- Right identity law for trace monoid. -/
+lemma mul_one (x : TraceMonoid es) : x * 1 = x := by
+  obtain ⟨t, rfl⟩ := Quotient.exists_rep x
+  change mk es (t ++ []) = mk es t
+  simp
+
+/-- Associativity law for trace monoid. -/
+lemma mul_assoc (x y z : TraceMonoid es) : (x * y) * z = x * (y * z) := by
+  obtain ⟨t₁, rfl⟩ := Quotient.exists_rep x
+  obtain ⟨t₂, rfl⟩ := Quotient.exists_rep y
+  obtain ⟨t₃, rfl⟩ := Quotient.exists_rep z
+  change mk es ((t₁ ++ t₂) ++ t₃) = mk es (t₁ ++ (t₂ ++ t₃))
+  simp
+
+/-- The trace monoid is a monoid. -/
+instance : Monoid (TraceMonoid es) where
+  mul_assoc := mul_assoc es
+  one_mul := one_mul es
+  mul_one := mul_one es
+
+/-- If the concurrency relation is full, the head of the list can be moved to the end -/
+lemma move_head_full
+    (hfull : ∀ e₁ e₂ : es.Event, e₁ ⋈ e₂) :
+    ∀ (e : es.Event) (t : List es.Event),
+    TraceEquiv es (e :: t) (t ++ [e]) := by
+  intro e t
+  induction t with
+  | nil => exact TraceEquiv.refl _
+  | cons e' t' ih =>
+    calc (e :: e' :: t')
+      _ = ([] ++ e :: e' :: t') := by simp
+      _ ≈ₜ ([] ++ e' :: e :: t') := TraceEquiv.swap (hfull e' e) (TraceEquiv.refl _)
+      _ = (e' :: e :: t') := by simp
+      _ ≈ₜ (e' :: (t' ++ [e])) := traceEquiv_append_left es ih [e']
+      _ = ((e' :: t') ++ [e]) := by simp
+
+/-- If the concurrency relation is full, the monoid is commutative. -/
+lemma mul_comm_full
+    (hfull : ∀ e₁ e₂ : es.Event, e₁ ⋈ e₂)
+    : ∀ t₁ t₂ : List es.Event, TraceEquiv es (t₁ ++ t₂) (t₂ ++ t₁) := by
+  intro t₁
+  induction t₁ with
+  | nil =>
+    intro t₂
+    calc ([] ++ t₂)
+        = t₂ := List.nil_append t₂
+      _ ≈ₜ t₂ := TraceEquiv.refl _
+      _ = (t₂ ++ []) := (List.append_nil t₂).symm
+  | cons e t₁' ih =>
+    intro t₂
+    calc ((e :: t₁') ++ t₂)
+      _ = (e :: (t₁' ++ t₂)) := by simp
+      _ ≈ₜ (e :: (t₂ ++ t₁')) := traceEquiv_append_left es (ih t₂) [e]
+      _ = ((e :: t₂) ++ t₁') := by simp
+      _ ≈ₜ (t₂ ++ [e] ++ t₁') := traceEquiv_append_right es (move_head_full es hfull e t₂) t₁'
+      _ = (t₂ ++ ([e] ++ t₁')) := by simp
+
+/-- If the concurrency relation is empty, trace equivalence is just list equality. -/
+lemma traceEquiv_eq_empty
+    (hempty : ∀ e₁ e₂ : es.Event, ¬ e₁ ⋈ e₂)
+    {t₁ t₂ : List es.Event} (h : TraceEquiv es t₁ t₂) : t₁ = t₂ := by
+  induction h with
+  | refl t => rfl
+  | @swap e₁ e₂ a b c ind hprev ih =>
+    exact False.elim ((hempty e₁ e₂) ind)
+
+/-- If the concurrency relation is empty and there are at least two distinct events,
+    then the monoid is not commutative. -/
+lemma mul_not_comm_empty
+    (hempty : ∀ e₁ e₂ : es.Event, ¬ e₁ ⋈ e₂)
+    (hdistinct : ∃ e₁ e₂ : es.Event, e₁ ≠ e₂) :
+    ∃ t₁ t₂ : List es.Event, ¬ TraceEquiv es (t₁ ++ t₂) (t₂ ++ t₁) := by
+  obtain ⟨e₁, e₂, hneq⟩ := hdistinct
+  refine ⟨[e₁], [e₂], ?_⟩
+  intro hteq
+  have h' : TraceEquiv es [e₁, e₂] [e₂, e₁] := by simpa using hteq
+  have hlists_eq : [e₁, e₂] = [e₂, e₁] := traceEquiv_eq_empty es hempty h'
+  have heq : e₁ = e₂ := by
+    have := congrArg List.head? hlists_eq
+    simpa using this
+  exact hneq heq
+
+end Monoid
 
 end Trace
