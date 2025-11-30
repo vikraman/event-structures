@@ -22,7 +22,8 @@ local infixl:50 " # " => es.conflict
 @[simp] def consistent (e₁ e₂ : es.Event) : Prop := ¬ (e₁ # e₂)
 
 /-- Consistency is reflexive. -/
-lemma consistent_refl : Reflexive es.consistent := es.conflict_irrefl
+lemma consistent_refl : Reflexive es.consistent :=
+  es.conflict_irrefl
 /-- Consistency is symmetric. -/
 lemma consistent_symm : Symmetric es.consistent :=
   fun _ _ h h' => h (es.conflict_symm h')
