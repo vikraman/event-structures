@@ -3,7 +3,6 @@ email: git@vikraman.org
 description: >
   Formalisation of Event Structures and Causal-Consistency in Lean
 url: https://vikraman.github.io/event-structures
-baseurl: ""
 github_username: vikraman
 repository: vikraman/event-structures
 
