@@ -2,6 +2,6 @@
 
 ![build](https://github.com/vikraman/event-structures/actions/workflows/lean_action_ci.yml/badge.svg)
 ![update](https://github.com/vikraman/event-structures/actions/workflows/update.yml/badge.svg)
-![website](https://img.shields.io/badge/Website-blue?logo=github)
+[![website](https://img.shields.io/badge/Website-blue?logo=github)](https://vikraman.github.io/event-structures/)
 
 Formalisation of some facts about event structures and causal-consistent reversibility on them.
