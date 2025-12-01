@@ -1,3 +1,4 @@
 import EventStructures.Basic
 import EventStructures.Configuration
 import EventStructures.Trace
+import EventStructures.Path
