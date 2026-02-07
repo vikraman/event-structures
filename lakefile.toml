@@ -4,7 +4,7 @@ keywords = ["math"]
 defaultTargets = ["EventStructures"]
 
 [leanOptions]
-pp.unicode.fun = true # pretty-prints `fun a ↦ b`
+pp.unicode.fun = true                 # pretty-prints `fun a ↦ b`
 relaxedAutoImplicit = false
 weak.linter.mathlibStandardSet = true
 maxSynthPendingDepth = 3
@@ -12,16 +12,17 @@ maxSynthPendingDepth = 3
 [[require]]
 name = "mathlib"
 scope = "leanprover-community"
-rev = "v4.26.0-rc2"
-
+rev = "v4.27.0"
 
 [[require]]
 name = "checkdecls"
 git = "https://github.com/PatrickMassot/checkdecls.git"
+rev = "3d425859e73fcfbef85b9638c2a91708ef4a22d4"
 
 [[require]]
 name = "«doc-gen4»"
 git = "https://github.com/leanprover/doc-gen4"
-rev = "main"
+rev = "437bd7d8c71e5cc00132d66eaf96f2acc0382c1c"
+
 [[lean_lib]]
 name = "EventStructures"
