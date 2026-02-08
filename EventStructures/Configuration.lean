@@ -53,7 +53,11 @@ lemma enables_extension {c : Set es.Event} {e : es.Event} (h : c ⊢ e) :
     obtain h' | h' := h'
     · exact Set.mem_union_left _ (hDownClosed h' h'')
     · rw [Set.mem_singleton_iff] at h'
-      rw [h'] at h''
-      exact Set.mem_union_left _ (hPast h'')
+      subst h'
+      rcases lt_or_eq_of_le h'' with hlt | rfl
+      · exact Set.mem_union_left _ (hPast hlt)
+      · exact by
+          right
+          simp
 
 end Configuration

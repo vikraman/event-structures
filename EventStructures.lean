@@ -3,3 +3,5 @@ import EventStructures.Configuration
 import EventStructures.Trace
 import EventStructures.Path
 import EventStructures.Computation
+import EventStructures.FinitePoset
+import EventStructures.Rollback

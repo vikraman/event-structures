@@ -49,8 +49,8 @@ lemma concurrent_symm : Symmetric es.concurrent := by
   refine ⟨?_, hNotLe21, hNotLe12⟩
   exact (consistent_symm es) hCons
 
-/-- The past (downset) of an event: all events causally preceding it. -/
-@[simp] def past (e : es.Event) : Set es.Event := {x | x ≤ e}
+/-- The strict past of an event: all events strictly preceding it. -/
+@[simp] def past (e : es.Event) : Set es.Event := {x | x < e}
 
 /-- The future (upset) of an event: all events causally succeeding it. -/
 @[simp] def future (e : es.Event) : Set es.Event := {x | e ≤ x}
