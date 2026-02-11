@@ -5,3 +5,5 @@ import EventStructures.Path
 import EventStructures.Computation
 import EventStructures.FinitePoset
 import EventStructures.Rollback
+import EventStructures.Log
+import EventStructures.Replay

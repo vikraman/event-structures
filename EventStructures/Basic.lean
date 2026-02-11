@@ -49,6 +49,37 @@ lemma concurrent_symm : Symmetric es.concurrent := by
   refine ⟨?_, hNotLe21, hNotLe12⟩
   exact (consistent_symm es) hCons
 
+/-- Minimal conflict relation: (e₁, e₂) is a minimal conflicting pair if they conflict
+    and there is no proper reduction of either that still produces a conflict.
+    Formally: e₁ # e₂ and for all e₁' ≤ e₁, e₂' ≤ e₂, if e₁' # e₂' then e₁' = e₁ ∧ e₂' = e₂ -/
+@[simp]
+def minimalConflict (e₁ e₂ : es.Event) : Prop :=
+  es.conflict e₁ e₂ ∧
+  ∀ e₁' e₂', e₁' ≤ e₁ → e₂' ≤ e₂ → es.conflict e₁' e₂' → e₁' = e₁ ∧ e₂' = e₂
+
+/-- Notation for minimal conflict. -/
+local infixl:50 " ## " => es.minimalConflict
+
+/-- Minimal conflict is symmetric. -/
+lemma minimalConflict_symm : Symmetric es.minimalConflict := by
+  intro e₁ e₂ ⟨hConf, hMin⟩
+  refine ⟨es.conflict_symm hConf, ?_⟩
+  intro e₂' e₁' he₂ he₁ hConf'
+  have := hMin e₁' e₂' he₁ he₂ (es.conflict_symm hConf')
+  exact ⟨this.2, this.1⟩
+
+/-- If (e₁, e₂) is a minimal conflict, then e₁ and e₂ conflict. -/
+lemma minimalConflict_conflict {e₁ e₂ : es.Event} (h : es.minimalConflict e₁ e₂) :
+    es.conflict e₁ e₂ :=
+  h.1
+
+/-- If (e₁, e₂) is a minimal conflict and e₁' ≤ e₁, e₂' ≤ e₂ with e₁' ## e₂',
+    then e₁' = e₁ and e₂' = e₂. -/
+lemma minimalConflict_minimal {e₁ e₂ e₁' e₂' : es.Event} (h : es.minimalConflict e₁ e₂)
+    (he₁ : e₁' ≤ e₁) (he₂ : e₂' ≤ e₂) (hConf : es.conflict e₁' e₂') :
+    e₁' = e₁ ∧ e₂' = e₂ :=
+  h.2 e₁' e₂' he₁ he₂ hConf
+
 /-- The strict past of an event: all events strictly preceding it. -/
 @[simp] def past (e : es.Event) : Set es.Event := {x | x < e}
 
