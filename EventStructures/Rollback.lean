@@ -3,6 +3,7 @@ import EventStructures.Path
 import EventStructures.FinitePoset
 import Mathlib.Data.Finset.Basic
 import Mathlib.Data.Set.Finite.Basic
+import Mathlib.Data.Set.Card
 
 variable (es : EventStructure)
 
@@ -177,28 +178,112 @@ lemma event_enabled_when_past_present {c : Conf es} {e x : es.Event}
       have hyc : y ∈ c.1 := c.2.2 hx.1 (le_of_lt hy)
       exact hbase ⟨hyc, hyf⟩
 
-/-- CONJECTURE: For finite configurations, an executable list from rollback to the original
-    configuration exists. -/
-theorem execList_exists_finite [WellFoundedLT es.Event] {c : Conf es} {e : es.Event}
-    (hfin : (c.1 ∩ es.future e).Finite) :
+/-- Constructive: given a `Finset` representation `cF` of the underlying configuration `c`,
+    there is an executable list from the rollback configuration to `c`.
+    Uses decidable equality and decidable strict order on events. -/
+theorem execList_exists_finite [DecidableEventStructure es] {c : Conf es} {e : es.Event}
+    (cF : Finset es.Event) (hcF : ∀ x, x ∈ cF ↔ x ∈ c.1) :
     Nonempty (Σ t : List es.Event, Path.ExecList es (@rollbackFuture es c e) t c) := by
-  sorry
+  suffices H : ∀ (n : Nat) (c' : Conf es) (cF' : Finset es.Event),
+      (∀ x, x ∈ cF' ↔ x ∈ c'.1) → cF' ⊆ cF →
+      (cF \ cF').card = n →
+      Nonempty (Σ t : List es.Event, Path.ExecList es c' t c) by
+    let cR : Finset es.Event := cF.filter (fun x => ¬ e ≤ x)
+    have hcR : ∀ x, x ∈ cR ↔ x ∈ (@rollbackFuture es c e).1 := by
+      intro x
+      simp only [cR, Finset.mem_filter, hcF, rollbackFuture_mem,
+        EventStructure.future, Set.mem_setOf_eq]
+    exact H _ _ cR hcR (Finset.filter_subset _ _) rfl
+  intro n
+  induction n using Nat.strong_induction_on with
+  | _ n ih =>
+    intro c' cF' hcF' hcF'sub hcard
+    by_cases hzero : n = 0
+    · subst hzero
+      have hsdiff_empty : cF \ cF' = ∅ := Finset.card_eq_zero.mp hcard
+      have heq_finset : cF = cF' := by
+        apply Finset.Subset.antisymm _ hcF'sub
+        intro x hxcF
+        by_cases hxcF' : x ∈ cF'
+        · exact hxcF'
+        · exact absurd (Finset.mem_sdiff.mpr ⟨hxcF, hxcF'⟩)
+            (hsdiff_empty ▸ Finset.notMem_empty x)
+      have hc_eq : c.1 = c'.1 := by
+        ext x; rw [← hcF, heq_finset, hcF']
+      have heq : c' = c := Subtype.ext hc_eq.symm
+      subst heq
+      exact ⟨⟨[], Path.ExecList.nil _⟩⟩
+    · have hpos : 0 < n := Nat.pos_of_ne_zero hzero
+      have hsdiff_ne : (cF \ cF').Nonempty := Finset.card_pos.mp (hcard ▸ hpos)
+      obtain ⟨x, hxsdiff, hxMin⟩ := Finset.exists_minimal_dec (cF \ cF') hsdiff_ne
+      obtain ⟨hxcF, hxnotcF'⟩ := Finset.mem_sdiff.mp hxsdiff
+      have hxc : x ∈ c.1 := (hcF x).mp hxcF
+      have hxnotc' : x ∉ c'.1 := fun h => hxnotcF' ((hcF' x).mpr h)
+      have henab : c'.1 ⊢ x := by
+        refine ⟨c'.2, ?_, ?_⟩
+        · intro y hy
+          have hyc : y ∈ c.1 := (hcF y).mp (hcF'sub ((hcF' y).mpr hy))
+          exact c.2.1 hxc hyc
+        · intro y hyx
+          have hyc : y ∈ c.1 := c.2.2 hxc (le_of_lt hyx)
+          have hycF : y ∈ cF := (hcF y).mpr hyc
+          by_cases hycF' : y ∈ cF'
+          · exact (hcF' y).mp hycF'
+          · exact absurd hyx (hxMin y (Finset.mem_sdiff.mpr ⟨hycF, hycF'⟩))
+      let c'' : Conf es := Path.nextConf es c' x henab
+      let cF'' : Finset es.Event := insert x cF'
+      have hcF'' : ∀ y, y ∈ cF'' ↔ y ∈ c''.1 := by
+        intro y
+        simp only [cF'', Finset.mem_insert, c'', Path.nextConf, Set.mem_union,
+          Set.mem_singleton_iff]
+        rw [hcF']
+        tauto
+      have hcF''sub : cF'' ⊆ cF := by
+        intro y hy
+        rcases Finset.mem_insert.mp hy with rfl | hy
+        · exact hxcF
+        · exact hcF'sub hy
+      have hcard'' : (cF \ cF'').card = n - 1 := by
+        have h_eq : cF \ cF'' = (cF \ cF').erase x := by
+          ext y
+          simp only [cF'', Finset.mem_sdiff, Finset.mem_erase, Finset.mem_insert]
+          tauto
+        rw [h_eq, Finset.card_erase_of_mem hxsdiff, hcard]
+      obtain ⟨⟨t, hexec⟩⟩ := ih (n - 1) (by omega) c'' cF'' hcF'' hcF''sub hcard''
+      exact ⟨⟨x :: t, Path.ExecList.cons x henab hexec⟩⟩
 
-/-- Correctness: The original configuration `c` is reachable from `rollback(c,e)`
-    when the future is finite and < is well-founded. -/
-lemma rollback_correctness_finite [WellFoundedLT es.Event] {c : Conf es} {e : es.Event}
-    (hfin : (c.1 ∩ es.future e).Finite) :
+/-- Correctness: the original configuration `c` is reachable from `rollback(c,e)`
+    when `c.1` admits a `Finset` representation. -/
+lemma rollback_correctness_finite [DecidableEventStructure es] {c : Conf es} {e : es.Event}
+    (cF : Finset es.Event) (hcF : ∀ x, x ∈ cF ↔ x ∈ c.1) :
     Nonempty (Path es (@rollbackFuture es c e) c) := by
-  obtain ⟨⟨t, hExec⟩⟩ := execList_exists_finite (es := es) hfin
+  obtain ⟨⟨t, hExec⟩⟩ := execList_exists_finite (es := es) cF hcF
   exact ⟨Path.execList_to_path (es := es) hExec⟩
 
-/-- CONJECTURE: Minimality of Rollback - Any path from a candidate configuration to `c` is at
-    least as long as the path from `rollback(c,e)` to `c`. -/
-lemma rollback_minimality {c : Conf es} {e : es.Event}
-    (p : Path es (@rollbackFuture es c e) c)
-    (c' : Conf es) (hredo : c'.1 ⊢ e) (hsafe : ∀ x ∈ c'.1, x ∉ es.future e)
+set_option linter.unusedDecidableInType false in
+/-- Minimality of Rollback - Any path from a redo-candidate configuration `c'` to `c` is at
+    least as long as the number of events in `c` causally after `e`. -/
+lemma rollback_minimality [DecidableEq es.Event] {c : Conf es} {e : es.Event}
+    {c' : Conf es} (_hredo : c'.1 ⊢ e) (hsafe : ∀ x ∈ c'.1, x ∉ es.future e)
     (p' : Path es c' c) :
-    Path.length es p ≤ Path.length es p' := by
-  sorry
+    (c.1 ∩ es.future e).ncard ≤ Path.length es p' := by
+  have hexec : Path.ExecList es c' (Path.trace es p') c :=
+    Path.execList_of_path es p'
+  have htgt : c.1 = c'.1 ∪ {x | x ∈ Path.trace es p'} :=
+    Path.execList_target_eq_union es hexec
+  have hsub_set : c.1 ∩ es.future e ⊆ ↑(Path.trace es p').toFinset := by
+    intro x ⟨hxc, hxfut⟩
+    have hx_target : x ∈ c'.1 ∪ {y | y ∈ Path.trace es p'} := htgt ▸ hxc
+    rcases hx_target with hxc' | hxt
+    · exact absurd hxfut (hsafe x hxc')
+    · exact List.mem_toFinset.mpr hxt
+  have hFsetFin : ((Path.trace es p').toFinset : Set es.Event).Finite :=
+    (Path.trace es p').toFinset.finite_toSet
+  calc (c.1 ∩ es.future e).ncard
+      ≤ (↑(Path.trace es p').toFinset : Set es.Event).ncard :=
+        Set.ncard_le_ncard hsub_set hFsetFin
+    _ = (Path.trace es p').toFinset.card := Set.ncard_coe_finset _
+    _ ≤ (Path.trace es p').length := List.toFinset_card_le _
+    _ = Path.length es p' := rfl
 
 end Rollback

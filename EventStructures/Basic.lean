@@ -5,7 +5,7 @@ structure EventStructure where
   Event : Type*
   [poEvent : PartialOrder Event]
   conflict : Event → Event → Prop
-  conflict_irrefl : Irreflexive conflict
+  conflict_irrefl : ∀ e, ¬ conflict e e
   conflict_symm : Symmetric conflict
   conflict_hereditary : ∀ {e₁ e₂ e₃}, conflict e₁ e₂ → e₂ ≤ e₃ → conflict e₁ e₃
 
@@ -37,10 +37,8 @@ def concurrent (e₁ e₂ : es.Event) : Prop :=
 local infixl:50 " ⋈ " => es.concurrent
 
 /-- Concurrency is irreflexive. -/
-lemma concurrent_irrefl : Irreflexive es.concurrent := by
-  intro e h
-  rcases h with ⟨_, hNotLe, _⟩
-  exact hNotLe (le_rfl)
+lemma concurrent_irrefl : ∀ e, ¬ es.concurrent e e :=
+  fun _ ⟨_, hNotLe, _⟩ => hNotLe le_rfl
 
 /-- Concurrency is symmetric. -/
 lemma concurrent_symm : Symmetric es.concurrent := by
@@ -87,3 +85,17 @@ lemma minimalConflict_minimal {e₁ e₂ e₁' e₂' : es.Event} (h : es.minimal
 @[simp] def future (e : es.Event) : Set es.Event := {x | e ≤ x}
 
 end EventStructure
+
+/-- Decidability data for an event structure: decidable equality on events and
+    decidable strict order. Together these yield decidable causality. -/
+class DecidableEventStructure (es : EventStructure) where
+  decEq : DecidableEq es.Event
+  decLt : DecidableRel ((· < ·) : es.Event → es.Event → Prop)
+
+attribute [instance] DecidableEventStructure.decEq DecidableEventStructure.decLt
+
+instance EventStructure.decLe (es : EventStructure) [DecidableEventStructure es] :
+    DecidableRel ((· ≤ ·) : es.Event → es.Event → Prop) := fun a b =>
+  if hab : a = b then isTrue (hab ▸ le_refl a)
+  else if hlt : a < b then isTrue (le_of_lt hlt)
+  else isFalse fun h => (lt_or_eq_of_le h).elim hlt hab

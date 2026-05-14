@@ -54,8 +54,5 @@ def computation_to_reachable : Computations es → ReachableConf es :=
 
 /-- The map from computations to reachable configurations is surjective. -/
 lemma computation_to_reachable_surjective :
-    Function.Surjective (computation_to_reachable es) := by
-  intro x
-  rcases x with ⟨c, h⟩
-  rcases h with ⟨comp⟩
-  refine ⟨⟨c, comp⟩, rfl⟩
+    Function.Surjective (computation_to_reachable es) :=
+  fun ⟨c, ⟨comp⟩⟩ => ⟨⟨c, comp⟩, rfl⟩

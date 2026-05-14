@@ -286,7 +286,7 @@ lemma assoc {c₁ c₂ c₃ c₄ : Conf es}
 end Async
 
 /-- For a path from c₁ to c₂, every event in the trace appears exactly once. -/
-@[simp] lemma trace_length_eq_length {c₁ c₂ : Conf es} (p : Path es c₁ c₂) :
+lemma trace_length_eq_length {c₁ c₂ : Conf es} (p : Path es c₁ c₂) :
     (trace es p).length = length es p :=
   rfl
 

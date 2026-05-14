@@ -183,10 +183,7 @@ lemma mul_not_comm_empty
   intro hteq
   have h' : TraceEquiv es [e₁, e₂] [e₂, e₁] := by simpa using hteq
   have hlists_eq : [e₁, e₂] = [e₂, e₁] := traceEquiv_eq_empty es hempty h'
-  have heq : e₁ = e₂ := by
-    have := congrArg List.head? hlists_eq
-    simpa using this
-  exact hneq heq
+  exact hneq (by injection hlists_eq)
 
 end Monoid
 

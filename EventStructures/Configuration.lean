@@ -56,8 +56,6 @@ lemma enables_extension {c : Set es.Event} {e : es.Event} (h : c ⊢ e) :
       subst h'
       rcases lt_or_eq_of_le h'' with hlt | rfl
       · exact Set.mem_union_left _ (hPast hlt)
-      · exact by
-          right
-          simp
+      · exact Set.mem_union_right _ rfl
 
 end Configuration
