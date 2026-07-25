@@ -7,5 +7,7 @@ baseurl: /event-structures
 github_username: vikraman
 repository: vikraman/event-structures
 
+theme: minima
+
 plugins:
   - jekyll-github-metadata
