@@ -1,7 +1,7 @@
 import EventStructures.Basic
 import Mathlib.Data.Finset.Basic
 
-variable (es : EventStructure)
+variable {L : Type*} (es : EventStructure L)
 
 /-- A set of events is a configuration if it is conflict-free and downward closed. -/
 @[simp] def isConf (X : Set es.Event) : Prop :=

@@ -1,7 +1,7 @@
 import EventStructures.Basic
 import Mathlib.Algebra.Group.Defs
 
-variable (es : EventStructure)
+variable {L : Type*} (es : EventStructure L)
 open EventStructure
 local infixl:50 " ⋈ " => es.concurrent
 
@@ -18,7 +18,45 @@ inductive TraceEquiv : List es.Event → List es.Event → Prop
 /-- Notation for trace equivalence. -/
 local infixr:60 " ≈ₜ " => TraceEquiv es
 
+/-- The label sequence of a list of events, obtained by applying the
+    event structure's labeling function pointwise. -/
+@[simp] def labels (t : List es.Event) : List L := t.map es.label
+
 namespace Trace
+
+/-- Two lists of events are label-equivalent if they map to the same
+    sequence of labels. -/
+def LabelEquiv (t₁ t₂ : List es.Event) : Prop := labels es t₁ = labels es t₂
+
+/-- Notation for label equivalence. -/
+local infixr:60 " ≈ₗ " => LabelEquiv es
+
+/-- Label equivalence is reflexive. -/
+lemma labelEquiv_refl : Reflexive (LabelEquiv es) := fun _ => rfl
+
+/-- Label equivalence is symmetric. -/
+lemma labelEquiv_symm : Symmetric (LabelEquiv es) := fun _ _ h => h.symm
+
+/-- Label equivalence is transitive. -/
+lemma labelEquiv_trans : Transitive (LabelEquiv es) :=
+  fun _ _ _ h₁ h₂ => h₁.trans h₂
+
+/-- A labeling is concurrency-respecting if it assigns equal labels to concurrent events. -/
+def ConcurrencyRespecting : Prop :=
+  ∀ {e₁ e₂ : es.Event}, e₁ ⋈ e₂ → es.label e₁ = es.label e₂
+
+/-- Swapping two adjacent events preserves the label sequence iff they share a label. -/
+lemma labels_swap_iff {e₁ e₂ : es.Event} {t₁ t₂ : List es.Event} :
+    labels es (t₁ ++ e₁ :: e₂ :: t₂) = labels es (t₁ ++ e₂ :: e₁ :: t₂) ↔
+    es.label e₁ = es.label e₂ := by
+  change (t₁ ++ e₁ :: e₂ :: t₂).map es.label = (t₁ ++ e₂ :: e₁ :: t₂).map es.label ↔ _
+  rw [List.map_append, List.map_append, List.map_cons, List.map_cons,
+      List.map_cons, List.map_cons]
+  constructor
+  · intro h
+    have := List.append_cancel_left h
+    exact (List.cons.injEq _ _ _ _ |>.mp this).1
+  · intro h; rw [h]
 
 /-- Trace equivalence is reflexive. -/
 lemma traceEquiv_refl : Reflexive (TraceEquiv es) :=
@@ -39,11 +77,22 @@ lemma traceEquiv_symm : Symmetric (TraceEquiv es) := by
   | @swap e₁ e₂ t₁' t₂' t₃' ind _ ih =>
     exact traceEquiv_trans es ih (TraceEquiv.swap (es.concurrent_symm ind) (TraceEquiv.refl _))
 
+/-- Trace equivalence implies label equivalence under a concurrency-respecting labeling. -/
+lemma traceEquiv_imp_labelEquiv (hresp : ConcurrencyRespecting es)
+    {t₁ t₂ : List es.Event} (h : TraceEquiv es t₁ t₂) : LabelEquiv es t₁ t₂ := by
+  induction h with
+  | refl _ => rfl
+  | @swap e₁ e₂ t₁' t₂' t₃' ind _ ih =>
+    have hlab : es.label e₁ = es.label e₂ := hresp ind
+    have hsame : labels es (t₁' ++ e₂ :: e₁ :: t₂') = labels es (t₁' ++ e₁ :: e₂ :: t₂') :=
+      (labels_swap_iff es).mpr hlab.symm
+    exact hsame.trans ih
+
 /-- Trace equivalence is an equivalence relation. -/
 instance : Equivalence (TraceEquiv es) where
-  refl := @traceEquiv_refl es
-  symm := @traceEquiv_symm es
-  trans := @traceEquiv_trans es
+  refl := traceEquiv_refl es
+  symm h := traceEquiv_symm es h
+  trans h₁ h₂ := traceEquiv_trans es h₁ h₂
 
 /-- Trans instance for calc proofs. -/
 instance : Trans (TraceEquiv es) (TraceEquiv es) (TraceEquiv es) where
@@ -81,7 +130,8 @@ lemma traceEquiv_append {t₁ t₂ t₃ t₄ : List es.Event}
 /-- Setoid instance for trace equivalence. -/
 instance traceEquivSetoid : Setoid (List es.Event) where
   r := TraceEquiv es
-  iseqv := ⟨@traceEquiv_refl es, @traceEquiv_symm es, @traceEquiv_trans es⟩
+  iseqv := ⟨traceEquiv_refl es, fun h => traceEquiv_symm es h,
+            fun h₁ h₂ => traceEquiv_trans es h₁ h₂⟩
 
 /-- The trace monoid: lists of events quotiented by trace equivalence. -/
 def TraceMonoid : Type := Quotient (traceEquivSetoid es)

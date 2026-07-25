@@ -3,7 +3,7 @@ import EventStructures.Path
 import EventStructures.Trace
 import Mathlib.Logic.Function.Basic
 
-variable (es : EventStructure)
+variable {L : Type*} (es : EventStructure L)
 open EventStructure
 open Configuration
 open Path

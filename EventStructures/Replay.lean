@@ -4,7 +4,7 @@ import EventStructures.Computation
 import EventStructures.Log
 import EventStructures.Trace
 
-variable (es : EventStructure)
+variable {L : Type*} (es : EventStructure L)
 open EventStructure
 open Configuration
 open Log
@@ -204,5 +204,25 @@ lemma maxReplay_unique {l : Set es.Event} {σ₁ σ₂ : Computations es}
     conf es σ₁ = conf es σ₂ := by
   apply Subtype.ext
   exact maxReplay_unique_config es h₁ h₂
+
+/-- Two computations are label-equivalent if their configurations have the same
+    label image (i.e., the multiset of labels reached is the same, up to set image). -/
+def LabelEquivComputation (σ₁ σ₂ : Computations es) : Prop :=
+  es.label '' (conf es σ₁).1 = es.label '' (conf es σ₂).1
+
+/-- A minimal label replay: a computation compatible with the log whose label image
+    is contained in that of every other compatible computation. -/
+@[simp]
+def isMinLabelReplay (l : Set es.Event) (σ : Computations es) : Prop :=
+  σ ⊨ l ∧ ∀ σ' : Computations es, σ' ⊨ l →
+    es.label '' (conf es σ).1 ⊆ es.label '' (conf es σ').1
+
+/-- Configuration-minimal replays are also label-minimal: taking the label image of
+    a subset preserves subset. -/
+lemma isMinReplay_imp_isMinLabelReplay {l : Set es.Event} {σ : Computations es}
+    (h : isMinReplay es l σ) : isMinLabelReplay es l σ := by
+  refine ⟨h.1, ?_⟩
+  intro σ' hσ'
+  exact Set.image_mono (h.2 σ' hσ')
 
 end Replay

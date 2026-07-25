@@ -5,7 +5,7 @@ import Mathlib.CategoryTheory.Category.Basic
 import Mathlib.Data.Setoid.Basic
 import Mathlib.Data.Nat.Find
 
-variable (es : EventStructure)
+variable {L : Type*} (es : EventStructure L)
 open EventStructure
 open Configuration
 
@@ -81,6 +81,11 @@ def trace {c₁ c₂ : Conf es} (hPath : Path es c₁ c₂) : List es.Event :=
 /-- Length of a path, defined as the length of its trace. -/
 def length {c₁ c₂ : Conf es} (hPath : Path es c₁ c₂) : Nat :=
   (trace es hPath).length
+
+/-- The label sequence of a path: the trace mapped through `es.label`. -/
+@[simp] def labels {c₁ c₂ : Conf es} (p : Path es c₁ c₂) : List L :=
+  (trace es p).map es.label
+
 
 @[simp] lemma length_refl {c : Conf es} : length es (Path.refl (c:=c)) = 0 :=
   rfl
@@ -204,22 +209,25 @@ def PathEquiv {c₁ c₂ : Conf es} (p₁ p₂ : Path es c₁ c₂) : Prop :=
 local infixr:60 " ≈ₚ " => PathEquiv es
 
 /-- Path equivalence is reflexive. -/
-lemma pathEquiv_refl {c₁ c₂ : Conf es} : Reflexive (@PathEquiv es c₁ c₂) :=
+lemma pathEquiv_refl {c₁ c₂ : Conf es} : Reflexive (PathEquiv (es := es) (c₁ := c₁) (c₂ := c₂)) :=
   (pathSetoid es c₁ c₂).iseqv.refl
 
 /-- Path equivalence is symmetric. -/
-lemma pathEquiv_symm {c₁ c₂ : Conf es} : Symmetric (@PathEquiv es c₁ c₂) :=
+lemma pathEquiv_symm {c₁ c₂ : Conf es} :
+    Symmetric (PathEquiv (es := es) (c₁ := c₁) (c₂ := c₂)) :=
   fun _ _ => (pathSetoid es c₁ c₂).iseqv.symm
 
 /-- Path equivalence is transitive. -/
-lemma pathEquiv_trans {c₁ c₂ : Conf es} : Transitive (@PathEquiv es c₁ c₂) :=
+lemma pathEquiv_trans {c₁ c₂ : Conf es} :
+    Transitive (PathEquiv (es := es) (c₁ := c₁) (c₂ := c₂)) :=
   fun _ _ _ => (pathSetoid es c₁ c₂).iseqv.trans
 
 /-- Path equivalence is an equivalence relation. -/
-instance pathEquivEquivalence (c₁ c₂ : Conf es) : Equivalence (@PathEquiv es c₁ c₂) where
+instance pathEquivEquivalence (c₁ c₂ : Conf es) :
+    Equivalence (PathEquiv (es := es) (c₁ := c₁) (c₂ := c₂)) where
   refl := pathEquiv_refl es
-  symm := @pathEquiv_symm es c₁ c₂
-  trans := @pathEquiv_trans es c₁ c₂
+  symm h := pathEquiv_symm es h
+  trans h₁ h₂ := pathEquiv_trans es h₁ h₂
 
 /-- Trace of path composition is concatenation of traces. -/
 lemma trace_comp {c₁ c₂ c₃ : Conf es} (p₁₂ : Path es c₁ c₂) (p₂₃ : Path es c₂ c₃) :
@@ -229,6 +237,11 @@ lemma trace_comp {c₁ c₂ c₃ : Conf es} (p₁₂ : Path es c₁ c₂) (p₂�
   | step hEdge hPath ih =>
     simp only [path_comp, trace, ih]
     rw [List.cons_append]
+
+/-- Path labels are concatenated under path composition. -/
+lemma labels_comp {c₁ c₂ c₃ : Conf es} (p₁₂ : Path es c₁ c₂) (p₂₃ : Path es c₂ c₃) :
+    labels es (path_comp es p₁₂ p₂₃) = labels es p₁₂ ++ labels es p₂₃ := by
+  simp [labels, trace_comp, List.map_append]
 
 /-- Asynchronous path: paths quotiented by path equivalence. -/
 def Async (c₁ c₂ : Conf es) : Type _ :=

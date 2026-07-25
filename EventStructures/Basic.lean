@@ -1,17 +1,18 @@
 import Mathlib.Order.Basic
 
-/-- An event structure with binary conflict. -/
-structure EventStructure where
+/-- An event structure with binary conflict; events carry labels in `Label`. -/
+structure EventStructure (Label : Type*) where
   Event : Type*
   [poEvent : PartialOrder Event]
   conflict : Event → Event → Prop
+  label : Event → Label
   conflict_irrefl : ∀ e, ¬ conflict e e
   conflict_symm : Symmetric conflict
   conflict_hereditary : ∀ {e₁ e₂ e₃}, conflict e₁ e₂ → e₂ ≤ e₃ → conflict e₁ e₃
 
 namespace EventStructure
 
-variable (es : EventStructure)
+variable {L : Type*} (es : EventStructure L)
 
 instance : PartialOrder es.Event := es.poEvent
 
@@ -84,17 +85,23 @@ lemma minimalConflict_minimal {e₁ e₂ e₁' e₂' : es.Event} (h : es.minimal
 /-- The future (upset) of an event: all events causally succeeding it. -/
 @[simp] def future (e : es.Event) : Set es.Event := {x | e ≤ x}
 
+/-- The past of any event is conflict-free. -/
+lemma past_conflict_free {e e₁ e₂ : es.Event}
+    (h₁ : e₁ ≤ e) (h₂ : e₂ ≤ e) : ¬ es.conflict e₁ e₂ :=
+  fun hc => es.conflict_irrefl e
+    (es.conflict_hereditary (es.conflict_symm (es.conflict_hereditary hc h₂)) h₁)
+
 end EventStructure
 
 /-- Decidability data for an event structure: decidable equality on events and
     decidable strict order. Together these yield decidable causality. -/
-class DecidableEventStructure (es : EventStructure) where
+class DecidableEventStructure {L : Type*} (es : EventStructure L) where
   decEq : DecidableEq es.Event
   decLt : DecidableRel ((· < ·) : es.Event → es.Event → Prop)
 
 attribute [instance] DecidableEventStructure.decEq DecidableEventStructure.decLt
 
-instance EventStructure.decLe (es : EventStructure) [DecidableEventStructure es] :
+instance EventStructure.decLe {L : Type*} (es : EventStructure L) [DecidableEventStructure es] :
     DecidableRel ((· ≤ ·) : es.Event → es.Event → Prop) := fun a b =>
   if hab : a = b then isTrue (hab ▸ le_refl a)
   else if hlt : a < b then isTrue (le_of_lt hlt)

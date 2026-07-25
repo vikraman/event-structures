@@ -2,7 +2,7 @@ import EventStructures.Basic
 import EventStructures.Configuration
 import EventStructures.Computation
 
-variable (es : EventStructure)
+variable {L : Type*} (es : EventStructure L)
 open EventStructure
 open Configuration
 
@@ -103,5 +103,14 @@ def compatibleWithConfigLog (c : Conf es) (σ : Computations es) : Prop :=
 /-- The type of all computations compatible with the log of a configuration. -/
 def CompatibleWithConfigLog (c : Conf es) : Type _ :=
   CompatibleComputations es (log es c)
+
+/-- The label image of the log of a configuration. -/
+@[simp] def labelLog (c : Conf es) : Set L :=
+  es.label '' log es c
+
+/-- If `e` is in the log of `c`, then its label is in the label log. -/
+lemma label_mem_labelLog {c : Conf es} {e : es.Event} (h : e ∈ log es c) :
+    es.label e ∈ labelLog es c :=
+  ⟨e, h, rfl⟩
 
 end Log

@@ -5,7 +5,7 @@ import Mathlib.Data.Finset.Basic
 import Mathlib.Data.Set.Finite.Basic
 import Mathlib.Data.Set.Card
 
-variable (es : EventStructure)
+variable {L : Type*} (es : EventStructure L)
 
 namespace Rollback
 
@@ -85,16 +85,16 @@ def rollbackFuture (c : Conf es) (e : es.Event) : Conf es :=
   ⟨c.1 \ es.future e, rollback_future_isConf (es := es) (c := c)⟩
 
 @[simp] lemma rollbackFuture_val (c : Conf es) (e : es.Event) :
-    (@rollbackFuture es c e).1 = c.1 \ es.future e :=
+    (rollbackFuture (es := es) c e).1 = c.1 \ es.future e :=
   rfl
 
 @[simp] lemma rollbackFuture_mem {c : Conf es} {e : es.Event} {x : es.Event} :
-    x ∈ (@rollbackFuture es c e).1 ↔ x ∈ c.1 ∧ x ∉ es.future e :=
+    x ∈ (rollbackFuture (es := es) c e).1 ↔ x ∈ c.1 ∧ x ∉ es.future e :=
   Iff.rfl
 
 /-- Redoability: `e` is enabled in `rollback(c,e)` when `e ∈ c`. -/
 lemma rollback_redoable {c : Conf es} {e : es.Event} (he : e ∈ c.1) :
-    (@rollbackFuture es c e).1 ⊢ e := by
+    (rollbackFuture (es := es) c e).1 ⊢ e := by
   constructor
   · exact rollback_future_isConf (es := es) (c := c)
   constructor
@@ -109,12 +109,12 @@ lemma rollback_redoable {c : Conf es} {e : es.Event} (he : e ∈ c.1) :
 
 /-- Causal safety: Rollback removes exactly the causal consequences of `e`. -/
 lemma rollback_causal_safety {c : Conf es} {e : es.Event} {x : es.Event} :
-    x ∈ (@rollbackFuture es c e).1 → x ∉ es.future e :=
+    x ∈ (rollbackFuture (es := es) c e).1 → x ∉ es.future e :=
   fun hx => hx.2
 
 /-- The canonical rollback is a rollback for `c` and `e`. -/
 lemma rollback_future {c : Conf es} {e : es.Event} :
-    isRollback es c e (@rollbackFuture es c e) := by
+    isRollback es c e (rollbackFuture (es := es) c e) := by
   constructor
   · exact fun _ hx => hx.1  -- Subset of c
   constructor
@@ -133,7 +133,7 @@ lemma rollback_future {c : Conf es} {e : es.Event} :
   · -- The canonical rollback is also a candidate, so m must contain it by maximality
     have hsub : c.1 \ es.future e ⊆ c.1 := fun x hx => hx.1
     have hnot : e ∉ c.1 \ es.future e := fun he => he.2 le_rfl
-    exact h.2.2 (@rollbackFuture es c e) hsub hnot (rollback_subset_future (es := es) h)
+    exact h.2.2 (rollbackFuture (es := es) c e) hsub hnot (rollback_subset_future (es := es) h)
 
 /-- Rollbacks are unique when they exist. -/
 lemma rollback_unique {c : Conf es} {e : es.Event}
@@ -147,7 +147,8 @@ lemma rollback_maximum {c : Conf es} {e : es.Event} {m : Conf es}
     (h : isRollback es c e m) :
     ∀ m' : Conf es, m' ∈ RollbackCandidates es c e → m'.1 ⊆ m.1 := by
   -- By uniqueness, m equals the canonical rollback
-  have : m = @rollbackFuture es c e := rollback_unique (es := es) h (rollback_future (es := es))
+  have : m = rollbackFuture (es := es) c e :=
+    rollback_unique (es := es) h (rollback_future (es := es))
   cases this
   -- Now show any candidate is a subset of the canonical rollback
   intro m' ⟨hm'sub, hm'not⟩ x hx
@@ -158,7 +159,7 @@ lemma rollback_maximum {c : Conf es} {e : es.Event} {m : Conf es}
 lemma event_enabled_when_past_present {c : Conf es} {e x : es.Event}
     (hx : x ∈ c.1 ∩ es.future e) (c' : Conf es)
     (hpast : ∀ y, y < x → y ∈ c.1 ∩ es.future e → y ∈ c'.1)
-    (hbase : (@rollbackFuture es c e).1 ⊆ c'.1)
+    (hbase : (rollbackFuture (es := es) c e).1 ⊆ c'.1)
     (hconf : c'.1 ⊆ c.1) :
     c'.1 ⊢ x := by
   constructor
@@ -183,13 +184,13 @@ lemma event_enabled_when_past_present {c : Conf es} {e x : es.Event}
     Uses decidable equality and decidable strict order on events. -/
 theorem execList_exists_finite [DecidableEventStructure es] {c : Conf es} {e : es.Event}
     (cF : Finset es.Event) (hcF : ∀ x, x ∈ cF ↔ x ∈ c.1) :
-    Nonempty (Σ t : List es.Event, Path.ExecList es (@rollbackFuture es c e) t c) := by
+    Nonempty (Σ t : List es.Event, Path.ExecList es (rollbackFuture (es := es) c e) t c) := by
   suffices H : ∀ (n : Nat) (c' : Conf es) (cF' : Finset es.Event),
       (∀ x, x ∈ cF' ↔ x ∈ c'.1) → cF' ⊆ cF →
       (cF \ cF').card = n →
       Nonempty (Σ t : List es.Event, Path.ExecList es c' t c) by
     let cR : Finset es.Event := cF.filter (fun x => ¬ e ≤ x)
-    have hcR : ∀ x, x ∈ cR ↔ x ∈ (@rollbackFuture es c e).1 := by
+    have hcR : ∀ x, x ∈ cR ↔ x ∈ (rollbackFuture (es := es) c e).1 := by
       intro x
       simp only [cR, Finset.mem_filter, hcF, rollbackFuture_mem,
         EventStructure.future, Set.mem_setOf_eq]
@@ -256,7 +257,7 @@ theorem execList_exists_finite [DecidableEventStructure es] {c : Conf es} {e : e
     when `c.1` admits a `Finset` representation. -/
 lemma rollback_correctness_finite [DecidableEventStructure es] {c : Conf es} {e : es.Event}
     (cF : Finset es.Event) (hcF : ∀ x, x ∈ cF ↔ x ∈ c.1) :
-    Nonempty (Path es (@rollbackFuture es c e) c) := by
+    Nonempty (Path es (rollbackFuture (es := es) c e) c) := by
   obtain ⟨⟨t, hExec⟩⟩ := execList_exists_finite (es := es) cF hcF
   exact ⟨Path.execList_to_path (es := es) hExec⟩
 
