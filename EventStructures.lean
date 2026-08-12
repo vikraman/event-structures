@@ -7,3 +7,9 @@ import EventStructures.FinitePoset
 import EventStructures.Rollback
 import EventStructures.Log
 import EventStructures.Replay
+import EventStructures.LTSI
+import EventStructures.Residual
+import EventStructures.CCS.Syntax
+import EventStructures.CCS.Par
+import EventStructures.CCS.Semantics
+import EventStructures.CCS.Bisimulation
