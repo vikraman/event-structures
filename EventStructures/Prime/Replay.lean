@@ -1,6 +1,7 @@
 import EventStructures.Prime.Configuration
 import EventStructures.Prime.Log
 import EventStructures.Family.Replay
+import EventStructures.Stable.Replay
 
 /-! # Replay for a prime event structure
 
@@ -141,5 +142,24 @@ lemma maxReplay_exists (l : Set es.Event)
     ∃ σ : Computations es.toFamily, Replay.isMaxReplay es.toFamily es.conflict l σ := by
   obtain ⟨σ, h_conf, h_compat⟩ := hexists
   exact ⟨σ, maxReplaySet_is_maximal_replay es h_conf h_compat⟩
+
+/-- The downset is a configuration: two of its members conflicting would make
+`e` conflict with itself. -/
+lemma downset_isConf (e : es.Event) : isConf es (downset es e) :=
+  ⟨fun h₁ h₂ hc => es.conflict_irrefl e
+     (es.conflict_hereditary (es.conflict_symm (es.conflict_hereditary hc h₂)) h₁),
+   fun hx hle => le_trans hle hx⟩
+
+/-- Inside a configuration, the history of an event is its downset. -/
+lemma hist_eq_downset {c : Set es.Event} (hc : isConf es c) {x : es.Event} (hx : x ∈ c) :
+    Stable.hist es.toFamily c x = downset es x :=
+  Set.Subset.antisymm
+    (Stable.hist_least (F := es.toFamily) (downset_isConf es x) (fun _ hy => hc.2 hx hy) le_rfl)
+    (fun _ hy => Set.mem_sInter.mpr (fun _ hm => hm.1.2 hm.2.2 hy))
+
+/-- Hence the general least replay set agrees with the prime one. -/
+lemma replaySet_eq_minReplaySet {c l : Set es.Event} (hc : isConf es c) (hlc : l ⊆ c) :
+    Stable.replaySet es.toFamily c l = minReplaySet es l :=
+  Set.iUnion₂_congr (fun _ hy => hist_eq_downset es hc (hlc hy))
 
 end Replay
