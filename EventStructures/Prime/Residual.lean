@@ -1,9 +1,9 @@
-import EventStructures.Basic
-import EventStructures.Configuration
+import EventStructures.Prime.Basic
+import EventStructures.Prime.Configuration
 
 /-! # Residual event structures and isomorphisms -/
 
-namespace EventStructure
+namespace PES
 
 variable {L : Type*}
 
@@ -11,7 +11,7 @@ open Configuration
 
 /-- The residual of `E` at configuration `c`: events outside `c` that are
 consistent with everything in `c`. -/
-def residual (E : EventStructure L) (c : Conf E) : EventStructure L where
+def residual (E : PES L) (c : Conf E) : PES L where
   Event := {e : E.Event // e ∉ c.1 ∧ ∀ x ∈ c.1, ¬ E.conflict e x}
   poEvent :=
     { le := fun x y => x.1 ≤ y.1
@@ -28,7 +28,7 @@ def residual (E : EventStructure L) (c : Conf E) : EventStructure L where
 
 /-- An isomorphism of event structures: a bijection preserving order, conflict,
 and labels. -/
-structure Iso (E F : EventStructure L) where
+structure Iso (E F : PES L) where
   toFun : E.Event → F.Event
   invFun : F.Event → E.Event
   left_inv : ∀ e, invFun (toFun e) = e
@@ -41,7 +41,7 @@ structure Iso (E F : EventStructure L) where
 
 namespace Iso
 
-variable {E F : EventStructure L}
+variable {E F : PES L}
 
 lemma map_lt (iso : E ≃ₑ F) {e e' : E.Event} : e < e' ↔ iso.toFun e < iso.toFun e' := by
   simp only [lt_iff_le_not_ge, iso.map_le]
@@ -65,14 +65,14 @@ end Iso
 
 /-- An event of the residual lifts to an event of `E` outside `c` that is
 consistent with all of `c`. -/
-@[simp] lemma residual_val_not_mem {E : EventStructure L} {c : Conf E}
+@[simp] lemma residual_val_not_mem {E : PES L} {c : Conf E}
     (e : (residual E c).Event) : e.1 ∉ c.1 := e.2.1
 
-@[simp] lemma residual_val_consistent {E : EventStructure L} {c : Conf E}
+@[simp] lemma residual_val_consistent {E : PES L} {c : Conf E}
     (e : (residual E c).Event) : ∀ x ∈ c.1, ¬ E.conflict e.1 x := e.2.2
 
 /-- The residual at an empty configuration is isomorphic to the original. -/
-def init_iso (E : EventStructure L) (c : Conf E) (hc : c.1 = ∅) :
+def init_iso (E : PES L) (c : Conf E) (hc : c.1 = ∅) :
     E ≃ₑ residual E c where
   toFun e := ⟨e, by rw [hc]; exact Set.notMem_empty e,
                  fun x hx _ => absurd hx (hc ▸ Set.notMem_empty x)⟩
@@ -85,7 +85,7 @@ def init_iso (E : EventStructure L) (c : Conf E) (hc : c.1 = ∅) :
 
 /-- Enabling in the residual at empty corresponds to enabling in the original
 at `c`. -/
-lemma residual_enables_empty_iff {E : EventStructure L} {c : Conf E}
+lemma residual_enables_empty_iff {E : PES L} {c : Conf E}
     (e : (residual E c).Event) :
     enables (residual E c) ∅ e ↔ enables E c.1 e.1 := by
   refine ⟨?_, ?_⟩
@@ -106,4 +106,4 @@ lemma residual_enables_empty_iff {E : EventStructure L} {c : Conf E}
     intro x hx
     exact absurd (hpast hx) x.2.1
 
-end EventStructure
+end PES

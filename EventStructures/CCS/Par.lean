@@ -1,5 +1,5 @@
-import EventStructures.Basic
-import EventStructures.Configuration
+import EventStructures.Prime.Basic
+import EventStructures.Prime.Configuration
 import EventStructures.CCS.Syntax
 import Mathlib.Logic.Relation
 import Mathlib.Data.Set.Finite.Lattice
@@ -14,14 +14,14 @@ history, with a unique maximal tag and least among states containing it, and
 `Secured` to exclude deadlocked histories. Order is history inclusion; conflict
 is failure to merge. -/
 
-open EventStructure Configuration
+open PES Configuration
 
 namespace CCS
 
 variable {Name : Type*}
 
 /-- A product event: an `E`-event, an `F`-event, or a label-matched synchronisation. -/
-inductive Tag (E F : EventStructure (Action Name)) where
+inductive Tag (E F : PES (Action Name)) where
   | left : E.Event → Tag E F
   | right : F.Event → Tag E F
   | sync (e : E.Event) (f : F.Event)
@@ -29,7 +29,7 @@ inductive Tag (E F : EventStructure (Action Name)) where
 
 namespace Tag
 
-variable {E F : EventStructure (Action Name)}
+variable {E F : PES (Action Name)}
 
 /-- The `E`-event a tag consumes. -/
 def evL : Tag E F → Option E.Event
@@ -51,7 +51,7 @@ def label : Tag E F → Action Name
 
 end Tag
 
-variable {E F : EventStructure (Action Name)}
+variable {E F : PES (Action Name)}
 
 /-- `E`-events consumed by a set of tags. -/
 def projL (C : Set (Tag E F)) : Set E.Event := {e | ∃ t ∈ C, t.evL = some e}
@@ -161,7 +161,7 @@ lemma Secured.exists_max {C : Set (Tag E F)} (h : Secured C) :
       rw [insert_diff_self hnew]; exact hC.isState⟩
 
 /-- Events of `E ∥ F`: a tag together with its causal history. -/
-structure ParEvent (E F : EventStructure (Action Name)) where
+structure ParEvent (E F : PES (Action Name)) where
   /-- The causal history, including the event itself. -/
   hist : Set (Tag E F)
   /-- The event proper: the unique maximal tag of `hist`. -/
@@ -174,7 +174,7 @@ structure ParEvent (E F : EventStructure (Action Name)) where
 
 namespace ParEvent
 
-variable {E F : EventStructure (Action Name)}
+variable {E F : PES (Action Name)}
 
 /-- Only the top is removable. -/
 lemma top_uniq (p : ParEvent E F) {t : Tag E F} (ht : t ∈ p.hist)
@@ -264,7 +264,7 @@ def minTagEvent (t : Tag E F)
 
 /-- Parallel composition: events are prime states, ordered by history inclusion,
 in conflict when their histories cannot be merged. -/
-def par (E F : EventStructure (Action Name)) : EventStructure (Action Name) where
+def par (E F : PES (Action Name)) : PES (Action Name) where
   Event := ParEvent E F
   poEvent :=
     { le := fun p q => p.hist ⊆ q.hist
@@ -853,7 +853,7 @@ macro_rules
       `(tactic| intro _ hh; simp [Tag.evL, Tag.evR] at hh)
 
 /-- Component events of a tag that is enabled at `∅` are minimal. -/
-lemma min_of_enables_empty {es : EventStructure (Action Name)} {e : es.Event}
+lemma min_of_enables_empty {es : PES (Action Name)} {e : es.Event}
     (h : Configuration.enables es ∅ e) {e' : es.Event} (hle : e' ≤ e) : e' = e :=
   (lt_or_eq_of_le hle).elim (fun hlt => (h.2.2 hlt).elim) id
 
