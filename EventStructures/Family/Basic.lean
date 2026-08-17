@@ -61,6 +61,7 @@ def Indep (c : Set F.Event) (e₁ e₂ : F.Event) : Prop :=
 
 variable {F}
 
+/-- Independence is symmetric. -/
 lemma Indep.symm {c : Set F.Event} {e₁ e₂ : F.Event} (h : F.Indep c e₁ e₂) :
     F.Indep c e₂ e₁ :=
   ⟨h.1.symm, h.2.2.1, h.2.1, by rw [union_pair_comm]; exact h.2.2.2⟩

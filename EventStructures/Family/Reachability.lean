@@ -4,7 +4,7 @@ import Mathlib.Data.Set.Card
 /-! # Reachability
 
 Any configuration is reachable from a subconfiguration by firing the events of
-the gap one at a time. This is `secured`, and it needs no decidability. -/
+the gap one at a time. This is because configurations are secured. -/
 
 open ConfFamily
 

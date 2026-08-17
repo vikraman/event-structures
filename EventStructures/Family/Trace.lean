@@ -6,8 +6,7 @@ import EventStructures.Family.Basic
 
 /-! # Traces up to independence
 
-Trace equivalence over an arbitrary independence relation. Only symmetry of the
-relation is ever needed, and only for `traceEquiv_symm`. -/
+Trace equivalence over an arbitrary independence relation. -/
 
 variable {α L : Type*} (R : α → α → Prop) (lbl : α → L)
 
@@ -129,68 +128,76 @@ end Trace
 
 /-! ## Positional trace equivalence
 
-At the family level independence is relative to the configuration reached so
-far, so adjacent events may be transposed only where `Indep` licenses it. -/
+For families, independence is relative to the configuration reached so far. -/
 
 /-- The configuration reached by running `t` from `c`. -/
 def reach {L : Type*} (F : ConfFamily L) (c : Set F.Event) (t : List F.Event) : Set F.Event :=
   c ∪ {x | x ∈ t}
 
+/-- Running `t` and then `p` is running `t ++ p`. -/
+lemma reach_append {L : Type*} (F : ConfFamily L) (c : Set F.Event) (t p : List F.Event) :
+    reach F (reach F c t) p = reach F c (t ++ p) := by
+  ext x; simp [reach]; tauto
+
 namespace ConfFamily
 
 variable {L : Type*} {F : ConfFamily L}
 
-/-- Traces equivalent from a configuration: adjacent independent events commute. -/
-inductive TraceEquivFrom (F : ConfFamily L) : Set F.Event → List F.Event → List F.Event → Prop
-  | refl (c : Set F.Event) (t : List F.Event) : TraceEquivFrom F c t t
-  | swap {c : Set F.Event} {e₁ e₂ : F.Event} {t : List F.Event} :
-      F.Indep c e₁ e₂ → TraceEquivFrom F c (e₁ :: e₂ :: t) (e₂ :: e₁ :: t)
-  | cons {c : Set F.Event} {e : F.Event} {t₁ t₂ : List F.Event} :
-      TraceEquivFrom F (c ∪ {e}) t₁ t₂ → TraceEquivFrom F c (e :: t₁) (e :: t₂)
-  | trans {c : Set F.Event} {t₁ t₂ t₃ : List F.Event} :
-      TraceEquivFrom F c t₁ t₂ → TraceEquivFrom F c t₂ t₃ → TraceEquivFrom F c t₁ t₃
+/-- Traces equivalent from a configuration. -/
+inductive TraceEquivFrom (F : ConfFamily L) (c : Set F.Event) :
+    List F.Event → List F.Event → Prop
+  | refl (t : List F.Event) : TraceEquivFrom F c t t
+  | swap {e₁ e₂ : F.Event} {p t t' : List F.Event} :
+      F.Indep (reach F c p) e₁ e₂ →
+      TraceEquivFrom F c (p ++ e₁ :: e₂ :: t) t' →
+      TraceEquivFrom F c (p ++ e₂ :: e₁ :: t) t'
 
 namespace TraceEquivFrom
+
+lemma trans {c : Set F.Event} {t₁ t₂ t₃ : List F.Event}
+    (h₁₂ : TraceEquivFrom F c t₁ t₂) (h₂₃ : TraceEquivFrom F c t₂ t₃) :
+    TraceEquivFrom F c t₁ t₃ := by
+  induction h₁₂ with
+  | refl _ => exact h₂₃
+  | swap ind _ ih => exact .swap ind (ih h₂₃)
 
 lemma symm {c : Set F.Event} {t₁ t₂ : List F.Event} :
     TraceEquivFrom F c t₁ t₂ → TraceEquivFrom F c t₂ t₁ := by
   intro h
   induction h with
-  | refl c t => exact .refl c t
-  | swap hind => exact .swap hind.symm
-  | cons _ ih => exact .cons ih
-  | trans _ _ ih₁ ih₂ => exact .trans ih₂ ih₁
+  | refl t => exact .refl t
+  | swap ind _ ih => exact ih.trans (.swap ind.symm (.refl _))
 
 /-- Equivalent traces use the same events, so reach the same configuration. -/
 lemma reach_eq {c : Set F.Event} {t₁ t₂ : List F.Event} (h : TraceEquivFrom F c t₁ t₂) :
     reach F c t₁ = reach F c t₂ := by
   induction h with
   | refl => rfl
-  | swap => ext x; simp [reach]; tauto
-  | @cons c e t₁ t₂ _ ih =>
-    have : ∀ t : List F.Event, reach F c (e :: t) = reach F (c ∪ {e}) t := by
-      intro t; ext x; simp [reach]; tauto
-    rw [this, this, ih]
-  | trans _ _ ih₁ ih₂ => exact ih₁.trans ih₂
+  | swap _ _ ih =>
+    refine Eq.trans ?_ ih
+    ext x; simp [reach]; tauto
 
 lemma append_left {c : Set F.Event} {t₁ t₂ : List F.Event}
     (h : TraceEquivFrom F c t₁ t₂) (t : List F.Event) :
     TraceEquivFrom F c (t₁ ++ t) (t₂ ++ t) := by
   induction h with
-  | refl c _ => exact .refl c _
-  | swap hind => exact .swap hind
-  | cons _ ih => exact .cons ih
-  | trans _ _ ih₁ ih₂ => exact .trans ih₁ ih₂
+  | refl _ => exact .refl _
+  | @swap e₁ e₂ p s t' ind _ ih =>
+    have h₁ : (p ++ e₂ :: e₁ :: s) ++ t = p ++ e₂ :: e₁ :: (s ++ t) := by simp
+    have h₂ : (p ++ e₁ :: e₂ :: s) ++ t = p ++ e₁ :: e₂ :: (s ++ t) := by simp
+    rw [h₁]
+    exact .swap ind (h₂ ▸ ih)
 
 lemma append_right {c : Set F.Event} (t : List F.Event) {t₁ t₂ : List F.Event}
     (h : TraceEquivFrom F (reach F c t) t₁ t₂) :
     TraceEquivFrom F c (t ++ t₁) (t ++ t₂) := by
-  induction t generalizing c with
-  | nil => simpa [reach] using h
-  | cons e t ih =>
-    refine .cons (ih ?_)
-    have hre : reach F (c ∪ {e}) t = reach F c (e :: t) := by ext x; simp [reach]; tauto
-    rw [hre]; exact h
+  induction h with
+  | refl _ => exact .refl _
+  | @swap e₁ e₂ p s t' ind _ ih =>
+    have h₁ : t ++ (p ++ e₂ :: e₁ :: s) = (t ++ p) ++ e₂ :: e₁ :: s := by simp
+    have h₂ : t ++ (p ++ e₁ :: e₂ :: s) = (t ++ p) ++ e₁ :: e₂ :: s := by simp
+    rw [h₁]
+    exact .swap ((reach_append F c t p) ▸ ind) (h₂ ▸ ih)
 
 end TraceEquivFrom
 

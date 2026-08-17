@@ -172,11 +172,13 @@ lemma minPathLength_le {c₁ c₂ : Conf F} (h : Nonempty (Path F c₁ c₂)) (p
     minPathLength (F := F) h ≤ length F p := by
   classical
   simpa [minPathLength] using (Nat.find_min' (H := pathLengthExists (F := F) h) ⟨p, rfl⟩)
+
 /-- The trace of an execList_to_path is exactly the original list. -/
 lemma execList_to_path_trace {c₁ c₂ : Conf F} {t : List F.Event}
     (h : ExecList F c₁ t c₂) :
     trace F (execList_to_path (F := F) h) = t :=
   execList_trace (F := F) h
+
 /-- Extract an executable list from a path. -/
 def execList_of_path {c₁ c₂ : Conf F} (p : Path F c₁ c₂) : ExecList F c₁ (trace F p) c₂ :=
   match p with
@@ -194,7 +196,7 @@ def execList_of_path {c₁ c₂ : Conf F} (p : Path F c₁ c₂) : ExecList F c�
 instance pathSetoid (c₁ c₂ : Conf F) : Setoid (Path F c₁ c₂) where
   r p q := ConfFamily.TraceEquivFrom F c₁.val (trace F p) (trace F q)
   iseqv :=
-    ⟨fun p => .refl _ (trace F p), fun h => h.symm, fun h₁ h₂ => .trans h₁ h₂⟩
+    ⟨fun p => .refl (trace F p), fun h => h.symm, fun h₁ h₂ => .trans h₁ h₂⟩
 
 /-- The target of a path is the source extended by the trace. -/
 lemma path_target_eq_reach {c₁ c₂ : Conf F} (p : Path F c₁ c₂) :
@@ -339,7 +341,7 @@ lemma path_length_ge_trace_length {c₁ c₂ : Conf F} (p : Path F c₁ c₂) :
 
 end Path
 
-/-- The path category of an event structure. -/
+/-- The path category of the configuration family. -/
 instance pathCategory : CategoryTheory.Category (Conf F) where
   Hom := Path F
   id := Path.path_id F
@@ -348,7 +350,7 @@ instance pathCategory : CategoryTheory.Category (Conf F) where
   comp_id := Path.path_comp_id F
   assoc := Path.path_comp_assoc F
 
-/-- The asynchronous path category of an event structure. -/
+/-- The asynchronous path category of the configuration family. -/
 instance asyncPathCategory : CategoryTheory.Category (Conf F) where
   Hom := Path.Async F
   id := Path.Async.async_path_id F

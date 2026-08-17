@@ -26,7 +26,7 @@ def isLinearisation (c : Conf F) (t : List F.Event) : Prop :=
 lemma computation_is_linearisation {c : Conf F} (comp : Computation F c) :
     ∃ t : List F.Event, isLinearisation F c t := by
   obtain ⟨p, rfl⟩ := Quotient.exists_rep comp
-  exact ⟨Path.trace F p, ⟨p, .refl _ _⟩⟩
+  exact ⟨Path.trace F p, ⟨p, .refl _⟩⟩
 
 /-- Configurations reachable by a computation. -/
 def ReachableConf : Type _ := {c : Conf F // Nonempty (Computation F c)}

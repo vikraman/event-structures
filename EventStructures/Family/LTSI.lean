@@ -4,8 +4,8 @@ import EventStructures.LTS.Basic
 /-! # The LTSI of a configuration family
 
 States are configurations, steps add one enabled fresh event, and independence
-is the derived diamond condition. The forward LPV axioms hold for any family;
-the reverse ones need more and live in `Stable`. -/
+is the derived diamond condition. The forward LPV axioms hold for any family.
+-/
 
 open ConfFamily
 
