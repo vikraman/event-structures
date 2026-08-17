@@ -14,6 +14,7 @@ import EventStructures.Prime.Rollback
 import EventStructures.General.Basic
 import EventStructures.General.Stable
 import EventStructures.Stable.Basic
+import EventStructures.Stable.Prime
 import EventStructures.Stable.Rollback
 import EventStructures.Stable.LTSI
 import EventStructures.Stable.Replay
