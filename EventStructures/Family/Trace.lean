@@ -31,12 +31,12 @@ namespace Trace
 /-- Two traces are label-equivalent if they map to the same label sequence. -/
 def LabelEquiv (t₁ t₂ : List α) : Prop := labels lbl t₁ = labels lbl t₂
 
-lemma labelEquiv_refl : Reflexive (LabelEquiv lbl) := fun _ => rfl
+instance labelEquiv_refl : Std.Refl (LabelEquiv lbl) := ⟨fun _ => rfl⟩
 
-lemma labelEquiv_symm : Symmetric (LabelEquiv lbl) := fun _ _ h => h.symm
+instance labelEquiv_symm : Std.Symm (LabelEquiv lbl) := ⟨fun _ _ h => h.symm⟩
 
-lemma labelEquiv_trans : Transitive (LabelEquiv lbl) :=
-  fun _ _ _ h₁ h₂ => h₁.trans h₂
+instance labelEquiv_trans : IsTrans (List α) (LabelEquiv lbl) :=
+  ⟨fun _ _ _ h₁ h₂ => h₁.trans h₂⟩
 
 /-- A labelling respects independence if it assigns equal labels to independent events. -/
 def LabelRespecting : Prop := ∀ {e₁ e₂ : α}, R e₁ e₂ → lbl e₁ = lbl e₂
@@ -55,23 +55,23 @@ lemma labels_swap_iff {e₁ e₂ : α} {t₁ t₂ : List α} :
   · intro h; rw [h]
 
 /-- Trace equivalence is reflexive. -/
-lemma traceEquiv_refl : Reflexive (TraceEquiv R) :=
-  TraceEquiv.refl
+instance traceEquiv_refl : Std.Refl (TraceEquiv R) :=
+  ⟨TraceEquiv.refl⟩
 
 /-- Trace equivalence is transitive. -/
-lemma traceEquiv_trans : Transitive (TraceEquiv R) := by
-  intro t₁ t₂ t₃ h₁₂ h₂₃
+instance traceEquiv_trans : IsTrans (List α) (TraceEquiv R) := by
+  refine ⟨fun t₁ t₂ t₃ h₁₂ h₂₃ => ?_⟩
   induction h₁₂ with
   | refl _ => exact h₂₃
   | swap ind _ ih => exact TraceEquiv.swap ind (ih h₂₃)
 
 /-- Trace equivalence is symmetric when independence is. -/
-lemma traceEquiv_symm (hsymm : Symmetric R) : Symmetric (TraceEquiv R) := by
-  intro t₁ t₂ h
+lemma traceEquiv_symm (hsymm : Std.Symm R) : Std.Symm (TraceEquiv R) := by
+  refine ⟨fun t₁ t₂ h => ?_⟩
   induction h with
   | refl _ => exact TraceEquiv.refl _
   | @swap e₁ e₂ t₁' t₂' t₃' ind _ ih =>
-    exact traceEquiv_trans R ih (TraceEquiv.swap (hsymm ind) (TraceEquiv.refl _))
+    exact _root_.trans ih (TraceEquiv.swap (hsymm.symm _ _ ind) (TraceEquiv.refl _))
 
 /-- Trace equivalence implies label equivalence for an independence-respecting labelling. -/
 lemma traceEquiv_imp_labelEquiv (hresp : LabelRespecting R lbl)
@@ -85,14 +85,10 @@ lemma traceEquiv_imp_labelEquiv (hresp : LabelRespecting R lbl)
     exact hsame.trans ih
 
 /-- Trace equivalence is an equivalence relation when independence is symmetric. -/
-def traceEquivEquivalence (hsymm : Symmetric R) : Equivalence (TraceEquiv R) where
-  refl := traceEquiv_refl R
-  symm h := traceEquiv_symm R hsymm h
-  trans h₁ h₂ := traceEquiv_trans R h₁ h₂
-
-/-- Trans instance for calc proofs. -/
-instance : Trans (TraceEquiv R) (TraceEquiv R) (TraceEquiv R) where
-  trans h₁₂ h₂₃ := traceEquiv_trans R h₁₂ h₂₃
+theorem traceEquivEquivalence (hsymm : Std.Symm R) : Equivalence (TraceEquiv R) where
+  refl := (traceEquiv_refl R).refl
+  symm h := (traceEquiv_symm R hsymm).symm _ _ h
+  trans h₁ h₂ := _root_.trans h₁ h₂
 
 /-- Trace equivalence is a left congruence for append. -/
 lemma traceEquiv_append_left {t₁ t₂ : List α} (h : t₁ ≈ₜ t₂) (t : List α) :
@@ -121,10 +117,10 @@ lemma traceEquiv_append_right {t₁ t₂ : List α} (h : t₁ ≈ₜ t₂) (t : 
 /-- Trace equivalence is a congruence for append. -/
 lemma traceEquiv_append {t₁ t₂ t₃ t₄ : List α}
     (h₁ : t₁ ≈ₜ t₂) (h₂ : t₃ ≈ₜ t₄) : (t₁ ++ t₃) ≈ₜ (t₂ ++ t₄) :=
-  traceEquiv_trans R (traceEquiv_append_right R h₁ t₃) (traceEquiv_append_left R h₂ t₂)
+  _root_.trans (traceEquiv_append_right R h₁ t₃) (traceEquiv_append_left R h₂ t₂)
 
 /-- Setoid of traces, for a symmetric independence relation. -/
-def traceEquivSetoid (hsymm : Symmetric R) : Setoid (List α) where
+def traceEquivSetoid (hsymm : Std.Symm R) : Setoid (List α) where
   r := TraceEquiv R
   iseqv := traceEquivEquivalence R hsymm
 

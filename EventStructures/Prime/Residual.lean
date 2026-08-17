@@ -23,7 +23,7 @@ def residual (E : PES L) (c : Conf E) : PES L where
   conflict x y := E.conflict x.1 y.1
   label x := E.label x.1
   conflict_irrefl x := E.conflict_irrefl x.1
-  conflict_symm _ _ h := E.conflict_symm h
+  conflict_symm := ⟨fun _ _ h => E.conflict_symm.symm _ _ h⟩
   conflict_hereditary {_ _ z} hxy hyz := E.conflict_hereditary hxy (show _ ≤ z.1 from hyz)
 
 /-- An isomorphism of event structures: a bijection preserving order, conflict,
@@ -98,8 +98,8 @@ lemma residual_enables_empty_iff {E : PES L} {c : Conf E}
       · exact hxc
       · let hx_resid : (residual E c).Event :=
           ⟨x, hxc, fun y hy hconf =>
-            e.2.2 y hy
-              (E.conflict_symm (E.conflict_hereditary (E.conflict_symm hconf) hx_lt.le))⟩
+            e.2.2 y hy (E.conflict_symm.symm _ _
+              (E.conflict_hereditary (E.conflict_symm.symm _ _ hconf) hx_lt.le))⟩
         exact absurd (hpast (show hx_resid < e from hx_lt)) (Set.notMem_empty hx_resid)
   · rintro ⟨_, _, hpast⟩
     refine ⟨⟨fun h _ _ => h.elim, fun h _ => h.elim⟩, fun _ h => h.elim, ?_⟩

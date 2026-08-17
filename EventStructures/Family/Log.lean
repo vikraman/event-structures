@@ -43,7 +43,7 @@ def CompatibleComputations.val {l : Set F.Event} (σ : CompatibleComputations F 
     Computations F := σ.1
 
 /-- The compatibility proof. -/
-def CompatibleComputations.compatible {l : Set F.Event}
+theorem CompatibleComputations.compatible {l : Set F.Event}
     (σ : CompatibleComputations F R l) : CompatibleComputations.val F R σ ⊨ l := σ.2
 
 /-- The label image of a log. -/

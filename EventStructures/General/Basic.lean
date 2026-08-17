@@ -1,5 +1,5 @@
 import EventStructures.Family.Basic
-import Mathlib.Data.Nat.Lattice
+import Mathlib.Order.Lattice.Nat
 import Mathlib.Order.Preorder.Finite
 import Mathlib.Order.Minimal
 
@@ -149,7 +149,7 @@ lemma isConf_secured {x y : Set G.Event} (hx : G.isConf x) (hy : G.isConf y)
             omega
           exact ih _ (hXlt g hg) g hgx hge rfl
         exact ⟨N + 1, ⟨hf, fun hfe' => hfe (Set.mem_singleton_iff.mp hfe')⟩, X, hN, hXen⟩
-  exact ⟨e, heD, fun X hX => hx.1 X (hX.trans Set.diff_subset),
+  exact ⟨e, heD, fun X hX => hx.1 X (hX.trans Set.sdiff_subset),
     fun f hf => key _ f hf.1 (fun h => hf.2 (Set.mem_singleton_iff.mpr h)) rfl⟩
 
 /-- The configuration family of a general event structure. -/

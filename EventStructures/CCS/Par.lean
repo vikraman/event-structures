@@ -182,7 +182,7 @@ lemma top_uniq (p : ParEvent E F) {t : Tag E F} (ht : t ∈ p.hist)
   by_contra hne
   have htop : p.top ∈ p.hist \ {t} :=
     ⟨p.top_mem, fun h => hne (Set.mem_singleton_iff.mp h).symm⟩
-  have := p.hist_min _ Set.diff_subset hst htop
+  have := p.hist_min _ Set.sdiff_subset hst htop
   exact (this ▸ ht).2 rfl
 
 lemma top_max (p : ParEvent E F) : IsState (p.hist \ {p.top}) := by
@@ -229,20 +229,20 @@ lemma isState_singleton (t : Tag E F)
   · rw [projL_singleton]
     refine ⟨?_, ?_⟩
     · intro e₁ e₂ h1 h2
-      simp only [Set.mem_setOf_eq] at h1 h2
+      simp only [Set.mem_ofPred_eq] at h1 h2
       rw [h1] at h2
       exact Option.some.inj h2 ▸ E.conflict_irrefl _
     · intro e e' he hle
-      simp only [Set.mem_setOf_eq] at he ⊢
+      simp only [Set.mem_ofPred_eq] at he ⊢
       exact hL he hle ▸ he
   · rw [projR_singleton]
     refine ⟨?_, ?_⟩
     · intro f₁ f₂ h1 h2
-      simp only [Set.mem_setOf_eq] at h1 h2
+      simp only [Set.mem_ofPred_eq] at h1 h2
       rw [h1] at h2
       exact Option.some.inj h2 ▸ F.conflict_irrefl _
     · intro f f' hf hle
-      simp only [Set.mem_setOf_eq] at hf ⊢
+      simp only [Set.mem_ofPred_eq] at hf ⊢
       exact hR hf hle ▸ hf
 
 lemma secured_singleton {t : Tag E F} (h : IsState ({t} : Set (Tag E F))) :
@@ -276,7 +276,7 @@ def par (E F : PES (Action Name)) : PES (Action Name) where
   conflict := fun p q => ¬ IsState (p.hist ∪ q.hist)
   label := fun p => p.top.label
   conflict_irrefl := fun p h => h (by rw [Set.union_self]; exact p.state)
-  conflict_symm := fun _ _ h hst => h (by rw [Set.union_comm]; exact hst)
+  conflict_symm := ⟨fun _ _ h hst => h (by rw [Set.union_comm]; exact hst)⟩
   conflict_hereditary := fun {p q r} hpq hqr hpr =>
     hpq (isState_of_subset hpr (Set.union_subset_union_right _ hqr)
           (ParEvent.union_downL p q) (ParEvent.union_downR p q))
@@ -370,7 +370,7 @@ lemma secured_of_closed {S : Set (Tag E F)} (hS : Secured S) :
         · exact absurd rfl hvu
         · exact hvC
       have hDu : IsState (D \ {u}) := by
-        refine isState_of_subset hD Set.diff_subset ?_ ?_
+        refine isState_of_subset hD Set.sdiff_subset ?_ ?_
         · rintro x x' ⟨w, ⟨hwD, hwu⟩, hw⟩ hle
           obtain ⟨v, hvD, hv⟩ := hD.downL (⟨w, hwD, hw⟩ : x ∈ projL D) hle
           refine ⟨v, ⟨hvD, ?_⟩, hv⟩
@@ -388,7 +388,7 @@ lemma secured_of_closed {S : Set (Tag E F)} (hS : Secured S) :
           ⟨hclosed a ha.1 b (Set.mem_insert_of_mem _ hb) hlt, fun hbu =>
             huC ((Set.mem_singleton_iff.mp hbu) ▸ hb)⟩)
       have heq : insert u (D \ {u}) = D := by
-        rw [Set.insert_diff_singleton, Set.insert_eq_self.mpr huD]
+        rw [Set.insert_sdiff_singleton, Set.insert_eq_self.mpr huD]
       have hD' : IsState (insert u (D \ {u})) := by rw [heq]; exact hD
       rw [← heq]
       exact Secured.step hsec (fun h => h.2 rfl) hD'
@@ -538,7 +538,7 @@ lemma past_subset {c : Set (ParEvent E F)} (hc : isConf (par E F) c) {q : ParEve
   intro r hr
   refine ⟨hc.2 hq (le_of_lt hr), ?_⟩
   rintro hrq
-  rw [Set.mem_singleton_iff] at hrq
+  replace hrq : r = q := hrq
   subst hrq
   exact absurd hr (lt_irrefl (α := (par E F).Event) r)
 
@@ -553,15 +553,15 @@ lemma secured_flat_aux : ∀ (n : ℕ) (c : Set (ParEvent E F)), c.Finite → c.
     · have h : flat (∅ : Set (ParEvent E F)) = ∅ := by ext t; simp [flat]
       exact h ▸ Secured.empty
     obtain ⟨q, hqc, hmax⟩ := hfin.exists_maximalFor ParEvent.hist c hne
-    have hsub : c \ {q} ⊆ c := Set.diff_subset
+    have hsub : c \ {q} ⊆ c := Set.sdiff_subset
     have hpast : (par E F).past q ⊆ c \ {q} := past_subset hc hqc
-    have hss : c \ {q} ⊂ c := Set.diff_singleton_ssubset.mpr hqc
+    have hss : c \ {q} ⊂ c := Set.sdiff_singleton_ssubset.mpr hqc
     have hc'conf : isConf (par E F) (c \ {q}) := by
       refine ⟨fun h1 h2 => hc.1 (hsub h1) (hsub h2), ?_⟩
       intro r s hr hle
       refine ⟨hc.2 hr.1 hle, ?_⟩
       rintro hsq
-      rw [Set.mem_singleton_iff] at hsq
+      replace hsq : s = q := hsq
       subst hsq
       exact hr.2 (Set.mem_singleton_iff.mpr
         (ParEvent.ext' (Set.Subset.antisymm hle (hmax hr.1 hle))).symm)
@@ -728,7 +728,7 @@ lemma projL_finite {C : Set (Tag E F)} (h : C.Finite) : (projL C).Finite := by
   | none => simp
   | some x =>
     refine (Set.finite_singleton x).subset (fun e he => ?_)
-    simp only [Set.mem_setOf_eq, Option.some.injEq] at he
+    simp only [Set.mem_ofPred_eq, Option.some.injEq] at he
     simp [he]
 
 lemma projR_finite {C : Set (Tag E F)} (h : C.Finite) : (projR C).Finite := by
@@ -739,7 +739,7 @@ lemma projR_finite {C : Set (Tag E F)} (h : C.Finite) : (projR C).Finite := by
   | none => simp
   | some y =>
     refine (Set.finite_singleton y).subset (fun f hf => ?_)
-    simp only [Set.mem_setOf_eq, Option.some.injEq] at hf
+    simp only [Set.mem_ofPred_eq, Option.some.injEq] at hf
     simp [hf]
 
 /-- A tag with enabled components yields an enabled event. -/
@@ -768,7 +768,7 @@ lemma exists_event_tag {c : Set (ParEvent E F)} (hfin : c.Finite) (hc : isConf (
         · rw [h1] at h2
           exact (Option.some.inj h2) ▸ E.conflict_irrefl _
         · exact (hL e₁ h1).1.2.1 _ h2
-        · exact fun hcf => (hL e₂ h2).1.2.1 _ h1 (E.conflict_symm hcf)
+        · exact fun hcf => (hL e₂ h2).1.2.1 _ h1 (E.conflict_symm.symm _ _ hcf)
         · exact (isState_flat hc).2.2.1.1 h1 h2
       · rintro e e' (h | h) hle
         · rcases lt_or_eq_of_le hle with hlt | rfl
@@ -781,7 +781,7 @@ lemma exists_event_tag {c : Set (ParEvent E F)} (hfin : c.Finite) (hc : isConf (
         · rw [h1] at h2
           exact (Option.some.inj h2) ▸ F.conflict_irrefl _
         · exact (hR f₁ h1).1.2.1 _ h2
-        · exact fun hcf => (hR f₂ h2).1.2.1 _ h1 (F.conflict_symm hcf)
+        · exact fun hcf => (hR f₂ h2).1.2.1 _ h1 (F.conflict_symm.symm _ _ hcf)
         · exact (isState_flat hc).2.2.2.1 h1 h2
       · rintro f f' (h | h) hle
         · rcases lt_or_eq_of_le hle with hlt | rfl

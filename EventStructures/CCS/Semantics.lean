@@ -14,7 +14,7 @@ namespace CCS
 variable {Name : Type*}
 
 /-- Empty event structure. -/
-def empty : PES (Action Name) where
+@[reducible] def empty : PES (Action Name) where
   Event := PEmpty
   poEvent :=
     { le := fun _ _ => True
@@ -26,11 +26,11 @@ def empty : PES (Action Name) where
   conflict := fun _ _ => False
   label := PEmpty.elim
   conflict_irrefl := fun _ h => h
-  conflict_symm := fun _ _ h => h
+  conflict_symm := ⟨fun _ _ h => h⟩
   conflict_hereditary := fun h _ => h
 
 /-- Prefix `α.E`: new initial event below all of `E`. -/
-def pfx (α : Action Name) (E : PES (Action Name)) :
+@[reducible] def pfx (α : Action Name) (E : PES (Action Name)) :
     PES (Action Name) where
   Event := Option E.Event
   poEvent :=
@@ -62,14 +62,18 @@ def pfx (α : Action Name) (E : PES (Action Name)) :
     | some e => E.label e
   conflict_irrefl := by intro x; cases x <;> simp [E.conflict_irrefl]
   conflict_symm := by
-    intro x y h; cases x <;> cases y <;> simp_all only
-    exact E.conflict_symm h
+    refine ⟨fun x y h => ?_⟩
+    cases x <;> cases y <;> simp_all only
+    exact E.conflict_symm.symm _ _ h
   conflict_hereditary := by
-    intro x y z hxy hyz; cases x <;> cases y <;> cases z <;> simp_all only
-    exact E.conflict_hereditary hxy hyz
+    intro x y z hxy hyz
+    cases x <;> cases y <;> cases z <;> simp_all only <;>
+      first
+        | exact E.conflict_hereditary hxy hyz
+        | exact hyz.elim
 
 /-- Sum `E + F`: disjoint events, all cross-component pairs conflict. -/
-def sum (E F : PES (Action Name)) : PES (Action Name) where
+@[reducible] def sum (E F : PES (Action Name)) : PES (Action Name) where
   Event := E.Event ⊕ F.Event
   poEvent :=
     { le := fun x y => match x, y with
@@ -103,16 +107,20 @@ def sum (E F : PES (Action Name)) : PES (Action Name) where
   conflict_irrefl := by
     intro x; cases x <;> simp [E.conflict_irrefl, F.conflict_irrefl]
   conflict_symm := by
-    intro x y h; cases x <;> cases y <;> simp_all only
-    · exact E.conflict_symm h
-    · exact F.conflict_symm h
+    refine ⟨fun x y h => ?_⟩
+    cases x <;> cases y <;> simp_all only
+    · exact E.conflict_symm.symm _ _ h
+    · exact F.conflict_symm.symm _ _ h
   conflict_hereditary := by
-    intro x y z hxy hyz; cases x <;> cases y <;> cases z <;> simp_all only [ge_iff_le]
-    · exact E.conflict_hereditary hxy hyz
-    · exact F.conflict_hereditary hxy hyz
+    intro x y z hxy hyz
+    cases x <;> cases y <;> cases z <;> simp_all only [ge_iff_le] <;>
+      first
+        | exact E.conflict_hereditary hxy hyz
+        | exact F.conflict_hereditary hxy hyz
+        | exact hyz.elim
 
 /-- Restriction `(ν)E`: keep events whose past doesn't use the bound name. -/
-def restrict (E : PES (Action (Option Name))) : PES (Action Name) where
+@[reducible] def restrict (E : PES (Action (Option Name))) : PES (Action Name) where
   Event := {e : E.Event // ∀ e' ≤ e, (E.label e').strip.isSome = true}
   poEvent :=
     { le := fun x y => x.1 ≤ y.1
@@ -124,7 +132,7 @@ def restrict (E : PES (Action (Option Name))) : PES (Action Name) where
   conflict x y := E.conflict x.1 y.1
   label x := (E.label x.1).strip.get (x.2 x.1 le_rfl)
   conflict_irrefl x := E.conflict_irrefl x.1
-  conflict_symm _ _ h := E.conflict_symm h
+  conflict_symm := ⟨fun _ _ h => E.conflict_symm.symm _ _ h⟩
   conflict_hereditary {_ _ z} hxy hyz := E.conflict_hereditary hxy (show _ ≤ z.1 from hyz)
 
 
@@ -204,8 +212,9 @@ def embInr (E F : PES (Action Name)) : Emb F (sum E F) where
 @[simp] lemma embInl_f (E F : PES (Action Name)) : (embInl E F).f = Sum.inl := rfl
 @[simp] lemma embInr_f (E F : PES (Action Name)) : (embInr E F).f = Sum.inr := rfl
 
+set_option linter.checkUnivs false in
 /-- Event-structure semantics of finitary CCS. -/
-def semantics {Name : Type*} : Process Name → PES (Action Name)
+@[reducible] def semantics {Name : Type u} : Process Name → PES (Action Name)
   | .nil => empty
   | .pre α P => pfx α (semantics P)
   | .sum P Q => sum (semantics P) (semantics Q)

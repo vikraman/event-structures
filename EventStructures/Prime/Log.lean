@@ -28,7 +28,7 @@ lemma log_subset {c : Conf es} : log es c ⊆ c.1 := fun _ ⟨h, _⟩ => h
 
 /-- Events in the log are logged. -/
 lemma log_logged {c : Conf es} {e : es.Event} (h : e ∈ log es c) : logged es e := by
-  simp only [log, Set.mem_setOf_eq] at h
+  simp only [log, Set.mem_ofPred_eq] at h
   exact ⟨h.2.choose, h.2.choose_spec.2⟩
 
 lemma log_mem_iff {c : Conf es} {e : es.Event} :
@@ -40,11 +40,11 @@ lemma logged_iff {e : es.Event} : logged es e ↔ ∃ e', e ## e' :=
 
 /-- Minimal conflict is symmetric, so its partner is logged too. -/
 lemma logged_symm {e e' : es.Event} (h : e ## e') : logged es e' :=
-  ⟨e, es.minimalConflict_symm h⟩
+  ⟨e, (minimalConflict_symm es).symm _ _ h⟩
 
 lemma log_has_conflict_outside {c : Conf es} {e : es.Event} (he : e ∈ log es c) :
     ∃ e' ∉ c.1, e ## e' := by
-  simp only [log, Set.mem_setOf_eq] at he
+  simp only [log, Set.mem_ofPred_eq] at he
   exact he.2
 
 end Log

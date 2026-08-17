@@ -37,7 +37,7 @@ private lemma path_exists_aux : ∀ (n : ℕ) (c₀ c : Conf F),
       · rintro ⟨⟨hx, hxe⟩, hx₀⟩; exact ⟨⟨hx, hx₀⟩, hxe⟩
       · rintro ⟨⟨hx, hx₀⟩, hxe⟩; exact ⟨⟨hx, hxe⟩, hx₀⟩
     have hss : (c.val \ c₀.val) \ {e} ⊂ c.val \ c₀.val :=
-      Set.diff_singleton_ssubset.mpr hemem
+      Set.sdiff_singleton_ssubset.mpr hemem
     have hfin' : ((c.val \ {e}) \ c₀.val).Finite := by rw [hdiff]; exact hfin.subset hss.subset
     obtain ⟨p⟩ := ih ((c.val \ {e}) \ c₀.val).ncard
       (by rw [hdiff]; exact hcard ▸ Set.ncard_lt_ncard hss hfin)

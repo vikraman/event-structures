@@ -41,7 +41,7 @@ lemma enables_extension {c : Set es.Event} {e : es.Event} (h : c ⊢ e) :
       · rw [Set.mem_singleton_iff] at h₂
         rw [h₂]
         intro hConf
-        exact hConsistent e₁ h₁ (es.conflict_symm hConf)
+        exact hConsistent e₁ h₁ (es.conflict_symm.symm _ _ hConf)
     · rw [Set.mem_singleton_iff] at h₁
       obtain h₂ | h₂ := h₂
       · rw [h₁]
@@ -121,7 +121,7 @@ def toFamily : ConfFamily L where
     intro x y hx hy hyx hfin hne
     have hxy : (x \ y).Nonempty := by
       by_contra h
-      rw [Set.not_nonempty_iff_eq_empty, Set.diff_eq_empty] at h
+      rw [Set.not_nonempty_iff_eq_empty, Set.sdiff_eq_empty] at h
       exact hne (Set.Subset.antisymm h hyx)
     obtain ⟨e, hemem, hmax⟩ := hfin.exists_maximal hxy
     refine ⟨e, hemem, fun h₁ h₂ => hx.1 h₁.1 h₂.1, ?_⟩
@@ -144,8 +144,7 @@ def toFamily : ConfFamily L where
     intro x hx
     rcases hext.2 (Or.inr rfl : e ∈ c ∪ {e}) (le_of_lt hx) with h | h
     · exact h
-    · rw [Set.mem_singleton_iff] at h
-      subst h
+    · subst h
       exact absurd hx (lt_irrefl _)
   · exact fun h => ⟨h.1, Configuration.enables_extension P h⟩
 
@@ -173,11 +172,11 @@ lemma indep_iff_concurrent {c : Set P.Event} {e₁ e₂ : P.Event}
     · rintro x y (hx | rfl) (hy | rfl)
       · exact hc1.1 hx hy
       · rcases hx with hx | rfl
-        · exact fun hcf => h₂.2.1 x hx (P.conflict_symm hcf)
+        · exact fun hcf => h₂.2.1 x hx (P.conflict_symm.symm _ _ hcf)
         · exact hconc.1
       · rcases hy with hy | rfl
         · exact h₂.2.1 y hy
-        · exact fun hcf => hconc.1 (P.conflict_symm hcf)
+        · exact fun hcf => hconc.1 (P.conflict_symm.symm _ _ hcf)
       · exact P.conflict_irrefl _
     · rintro x y (hx | rfl) hle
       · exact Or.inl (hc1.2 hx hle)

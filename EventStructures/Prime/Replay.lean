@@ -45,13 +45,13 @@ lemma downset_closed {e x y : es.Event} (hxy : x ≤ y) (hy : y ∈ downset es e
 /-- The minimum replay set contains the log. -/
 lemma minReplaySet_contains_log {l : Set es.Event} : l ⊆ minReplaySet es l := by
   intro e he
-  simp only [minReplaySet, downset, Set.mem_iUnion, Set.mem_setOf_eq, exists_prop]
+  simp only [minReplaySet, downset, Set.mem_iUnion, Set.mem_ofPred_eq, exists_prop]
   exact ⟨e, he, le_rfl⟩
 
 /-- The minimum replay set is closed under predecessors. -/
 lemma minReplaySet_closed {l : Set es.Event} {x y : es.Event}
     (hy : y ≤ x) (hx : x ∈ minReplaySet es l) : y ∈ minReplaySet es l := by
-  simp only [minReplaySet, downset, Set.mem_iUnion, Set.mem_setOf_eq, exists_prop] at hx ⊢
+  simp only [minReplaySet, downset, Set.mem_iUnion, Set.mem_ofPred_eq, exists_prop] at hx ⊢
   obtain ⟨e, he, hxe⟩ := hx
   exact ⟨e, he, le_trans hy hxe⟩
 
@@ -67,9 +67,9 @@ lemma downset_compatible_with_log {l : Set es.Event} {e x : es.Event}
     (hl_conflict_free : ∀ {e₁ e₂}, e₁ ∈ l → e₂ ∈ l → ¬(e₁ # e₂)) :
     ∀ e' ∈ l, ¬(x # e') := by
   intro e' he' hconf
-  have hconf_symm := es.conflict_symm hconf
+  have hconf_symm := es.conflict_symm.symm _ _ hconf
   have : e' # e := es.conflict_hereditary hconf_symm hxe
-  have : e # e' := es.conflict_symm this
+  have : e # e' := es.conflict_symm.symm _ _ this
   exact hl_conflict_free he he' this
 
 /-- The minimum replay set is compatible with the log. -/
@@ -77,7 +77,7 @@ lemma minReplaySet_compatible_with_log {l : Set es.Event}
     (hl_conflict_free : ∀ {e₁ e₂}, e₁ ∈ l → e₂ ∈ l → ¬(e₁ # e₂)) :
     ∀ x ∈ minReplaySet es l, ∀ e ∈ l, ¬(x # e) := by
   intro x hx e he
-  simp only [minReplaySet, downset, Set.mem_iUnion, Set.mem_setOf_eq, exists_prop] at hx
+  simp only [minReplaySet, downset, Set.mem_iUnion, Set.mem_ofPred_eq, exists_prop] at hx
   obtain ⟨e', he', hxe'⟩ := hx
   exact downset_compatible_with_log es he' hxe' hl_conflict_free e he
 
@@ -91,8 +91,7 @@ lemma minReplaySet_is_minimal_replay {l : Set es.Event} {σ : Computations es.to
   · intro σ' h'_compat
     rw [h_conf]
     intro x hx
-    simp only [minReplaySet, downset, Set.mem_iUnion, exists_prop] at hx
-    obtain ⟨e, he, hxe⟩ := hx
+    obtain ⟨e, he, hxe⟩ := Set.mem_iUnion₂.mp hx
     -- x ≤ e and e ∈ l
     -- σ' ⊨ l means all events in l are in σ'
     have : e ∈ (Replay.conf es.toFamily σ').1 := h'_compat.1 e he
@@ -143,11 +142,10 @@ lemma maxReplay_exists (l : Set es.Event)
   obtain ⟨σ, h_conf, h_compat⟩ := hexists
   exact ⟨σ, maxReplaySet_is_maximal_replay es h_conf h_compat⟩
 
-/-- The downset is a configuration: two of its members conflicting would make
-`e` conflict with itself. -/
+/-- The downset is a configuration. -/
 lemma downset_isConf (e : es.Event) : isConf es (downset es e) :=
   ⟨fun h₁ h₂ hc => es.conflict_irrefl e
-     (es.conflict_hereditary (es.conflict_symm (es.conflict_hereditary hc h₂)) h₁),
+     (es.conflict_hereditary (es.conflict_symm.symm _ _ (es.conflict_hereditary hc h₂)) h₁),
    fun hx hle => le_trans hle hx⟩
 
 /-- Inside a configuration, the history of an event is its downset. -/
