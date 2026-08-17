@@ -7,9 +7,14 @@ import EventStructures.Prime.Trace
 import EventStructures.Family.Path
 import EventStructures.Family.Computation
 import EventStructures.Family.Reachability
+import EventStructures.Family.LTSI
 import EventStructures.Order.FinitePoset
 import EventStructures.Family.Rollback
 import EventStructures.Prime.Rollback
+import EventStructures.Stable.Basic
+import EventStructures.Stable.Rollback
+import EventStructures.Stable.LTSI
+import EventStructures.Stable.Replay
 import EventStructures.Family.Log
 import EventStructures.Prime.Log
 import EventStructures.Family.Replay

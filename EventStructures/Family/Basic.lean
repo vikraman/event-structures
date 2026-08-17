@@ -59,12 +59,17 @@ lemma union_pair_comm {α : Type*} (s : Set α) (a b : α) :
 `Config`; it is relative to `c`, since in a general event structure two events
 may be independent at one configuration and not at another. -/
 def Indep (c : Set F.Event) (e₁ e₂ : F.Event) : Prop :=
-  F.enables c e₁ ∧ F.enables c e₂ ∧ F.Config (c ∪ {e₁} ∪ {e₂})
+  e₁ ≠ e₂ ∧ F.enables c e₁ ∧ F.enables c e₂ ∧ F.Config (c ∪ {e₁} ∪ {e₂})
 
 variable {F}
 
 lemma Indep.symm {c : Set F.Event} {e₁ e₂ : F.Event} (h : F.Indep c e₁ e₂) :
-    F.Indep c e₂ e₁ := ⟨h.2.1, h.1, by rw [union_pair_comm]; exact h.2.2⟩
+    F.Indep c e₂ e₁ :=
+  ⟨h.1.symm, h.2.2.1, h.2.1, by rw [union_pair_comm]; exact h.2.2.2⟩
+
+/-- Independence is irreflexive. -/
+lemma Indep.irrefl {c : Set F.Event} {e : F.Event} : ¬ F.Indep c e e :=
+  fun h => h.1 rfl
 
 variable (F)
 

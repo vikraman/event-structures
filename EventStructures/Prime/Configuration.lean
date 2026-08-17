@@ -150,14 +150,13 @@ def toFamily : ConfFamily L where
   · exact fun h => ⟨h.1, Configuration.enables_extension P h⟩
 
 
-/-- Derived independence coincides with concurrency, for distinct fresh events.
-This is what recovers the prime notion rather than assuming it. -/
+/-- Derived independence coincides with concurrency, for distinct fresh events. -/
 lemma indep_iff_concurrent {c : Set P.Event} {e₁ e₂ : P.Event}
     (h₁ : Configuration.enables P c e₁) (h₂ : Configuration.enables P c e₂)
-    (hf₁ : e₁ ∉ c) (hf₂ : e₂ ∉ c) (hne : e₁ ≠ e₂) :
+    (hf₁ : e₁ ∉ c) (hf₂ : e₂ ∉ c) :
     P.toFamily.Indep c e₁ e₂ ↔ P.concurrent e₁ e₂ := by
   constructor
-  · rintro ⟨-, -, hst⟩
+  · rintro ⟨hne, -, -, hst⟩
     refine ⟨hst.1 (Or.inl (Or.inr rfl)) (Or.inr rfl), ?_, ?_⟩
     · intro hle
       rcases lt_or_eq_of_le hle with hlt | rfl
@@ -168,8 +167,9 @@ lemma indep_iff_concurrent {c : Set P.Event} {e₁ e₂ : P.Event}
       · exact hf₂ (h₁.2.2 hlt)
       · exact hne rfl
   · intro hconc
+    have hne : e₁ ≠ e₂ := by rintro rfl; exact P.concurrent_irrefl _ hconc
     have hc1 : isConf P (c ∪ {e₁}) := ((PES.enables_iff P).mpr h₁).2
-    refine ⟨(PES.enables_iff P).mpr h₁, (PES.enables_iff P).mpr h₂, ?_, ?_⟩
+    refine ⟨hne, (PES.enables_iff P).mpr h₁, (PES.enables_iff P).mpr h₂, ?_, ?_⟩
     · rintro x y (hx | rfl) (hy | rfl)
       · exact hc1.1 hx hy
       · rcases hx with hx | rfl
