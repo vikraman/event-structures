@@ -2,8 +2,8 @@ import EventStructures.Family.Log
 
 /-! # Replay
 
-Least and greatest computations compatible with a log. These are statements
-about the family of configurations alone: no order, no conflict. -/
+Least and greatest computations compatible with a log. These are defined
+only on the family of configurations. -/
 
 open ConfFamily
 

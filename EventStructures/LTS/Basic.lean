@@ -58,11 +58,13 @@ inductive DirLabel (L : Type*) : Type _
 
 namespace DirLabel
 
-@[simp] def rev : DirLabel L → DirLabel L
+@[simp]
+def rev : DirLabel L → DirLabel L
   | fwd a => bwd a
   | bwd a => fwd a
 
-@[simp] def label : DirLabel L → L
+@[simp]
+def label : DirLabel L → L
   | fwd a => a
   | bwd a => a
 
@@ -70,8 +72,7 @@ def isFwd : DirLabel L → Prop
   | fwd _ => True
   | bwd _ => False
 
-/-- Reversal is an involution. Not a `simp` lemma: `rev` is, so `simp` unfolds
-the inner application before this could fire; use `cases` first. -/
+/-- Reversal is an involution. -/
 lemma rev_rev (la : DirLabel L) : rev (rev la) = la := by cases la <;> rfl
 
 end DirLabel
