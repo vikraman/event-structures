@@ -2,8 +2,7 @@ import Mathlib.Tactic.Lemma
 import Mathlib.Tactic.TypeStar
 
 /-! # Labelled transition systems with independence (Lanese–Phillips–Ulidowski)
-
-Pure transition-system layer: no event-structure content. -/
+-/
 
 variable {L : Type*}
 
@@ -32,8 +31,8 @@ structure LPV : Prop where
 end LTSI
 
 
-/-- A bisimulation between two LTSIs: related initial states, steps matched both
-ways. Independence is not constrained. -/
+/-- A (strong) bisimulation between two LTSIs: related initial states and
+steps matched both ways. Independence is ignored. -/
 structure Bisim (S T : LTSI L) (R : S.State → T.State → Prop) : Prop where
   init : R S.init T.init
   forward : ∀ {s t a s'}, R s t → S.step s a s' → ∃ t', T.step t a t' ∧ R s' t'
@@ -59,11 +58,11 @@ inductive DirLabel (L : Type*) : Type _
 
 namespace DirLabel
 
-def rev : DirLabel L → DirLabel L
+@[simp] def rev : DirLabel L → DirLabel L
   | fwd a => bwd a
   | bwd a => fwd a
 
-def label : DirLabel L → L
+@[simp] def label : DirLabel L → L
   | fwd a => a
   | bwd a => a
 
@@ -71,11 +70,9 @@ def isFwd : DirLabel L → Prop
   | fwd _ => True
   | bwd _ => False
 
-@[simp] lemma rev_rev (la : DirLabel L) : rev (rev la) = la := by cases la <;> rfl
-@[simp] lemma rev_fwd (a : L) : rev (fwd a) = bwd a := rfl
-@[simp] lemma rev_bwd (a : L) : rev (bwd a) = fwd a := rfl
-@[simp] lemma label_fwd (a : L) : label (fwd a) = a := rfl
-@[simp] lemma label_bwd (a : L) : label (bwd a) = a := rfl
+/-- Reversal is an involution. Not a `simp` lemma: `rev` is, so `simp` unfolds
+the inner application before this could fire; use `cases` first. -/
+lemma rev_rev (la : DirLabel L) : rev (rev la) = la := by cases la <;> rfl
 
 end DirLabel
 
