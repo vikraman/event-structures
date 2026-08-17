@@ -152,6 +152,129 @@ lemma isConf_secured {x y : Set G.Event} (hx : G.isConf x) (hy : G.isConf y)
   exact ⟨e, heD, fun X hX => hx.1 X (hX.trans Set.sdiff_subset),
     fun f hf => key _ f hf.1 (fun h => hf.2 (Set.mem_singleton_iff.mpr h)) rfl⟩
 
+/-- The events of `c` of rank strictly below that of `x`, together with `x`,
+form a configuration. -/
+lemma isConf_rank_lt {c : Set G.Event} (hc : G.isConf c) {x : G.Event} (hx : x ∈ c) :
+    G.isConf ({z ∈ c | G.rank c z < G.rank c x} ∪ {x}) := by
+  set m : Set G.Event := {z ∈ c | G.rank c z < G.rank c x} ∪ {x} with hm
+  have hmc : m ⊆ c := by
+    rintro z (hz | hz)
+    · exact hz.1
+    · exact (Set.mem_singleton_iff.mp hz) ▸ hx
+  have hlt : ∀ {z}, z ∈ m → ∀ {g}, G.rank c g < G.rank c z → g ∈ c → g ∈ m := by
+    rintro z (hz | hz) g hg hgc
+    · exact Or.inl ⟨hgc, hg.trans hz.2⟩
+    · exact Or.inl ⟨hgc, (Set.mem_singleton_iff.mp hz) ▸ hg⟩
+  refine ⟨fun X hX => hc.1 X (hX.trans hmc), ?_⟩
+  have key : ∀ n z, z ∈ m → G.rank c z = n → ∃ k, z ∈ G.secApprox m k := by
+    intro n
+    induction n using Nat.strong_induction_on with
+    | _ n ih =>
+      rintro z hz rfl
+      obtain ⟨k, hk⟩ : ∃ k, G.rank c z = k + 1 := by
+        have : G.rank c z ≠ 0 := by
+          intro h0
+          have hmem := rank_mem (hc.2 z (hmc hz))
+          rw [h0] at hmem
+          exact hmem
+        exact ⟨G.rank c z - 1, by omega⟩
+      obtain ⟨-, X, hXsub, hXen⟩ := hk ▸ rank_mem (hc.2 z (hmc hz))
+      obtain ⟨N, hN⟩ := exists_bound (x := m) (X := X) fun g hg => by
+        have hgc : g ∈ c := secApprox_subset _ (hXsub hg)
+        have hglt : G.rank c g < G.rank c z := hk ▸ Nat.lt_succ_of_le (rank_le (hXsub hg))
+        exact ih _ hglt g (hlt hz hglt hgc) rfl
+      exact ⟨N + 1, hz, X, hN, hXen⟩
+  exact fun z hz => key _ z hz rfl
+
+/-- The image of a set under a partial map on events. -/
+def pmapSet {L' : Type*} {G : GES L} {H : GES L'} (φ : G.Event → Option H.Event)
+    (c : Set G.Event) : Set H.Event :=
+  {x | ∃ u ∈ c, φ u = some x}
+
+lemma subset_pmapSet {L' : Type*} {G : GES L} {H : GES L'}
+    {φ : G.Event → Option H.Event} {c : Set G.Event}
+    {u : G.Event} {x : H.Event} (hu : u ∈ c) (hx : φ u = some x) : x ∈ pmapSet φ c :=
+  ⟨u, hu, hx⟩
+
+lemma pmapSet_mono {L' : Type*} {G : GES L} {H : GES L'}
+    {φ : G.Event → Option H.Event} {c d : Set G.Event}
+    (h : c ⊆ d) : pmapSet φ c ⊆ pmapSet φ d :=
+  fun _ ⟨u, hu, hx⟩ => ⟨u, h hu, hx⟩
+
+/-- Configurations transfer along a partial map that carries enabling sets to
+enabling sets. This is the one securedness induction the whole CCS semantics
+needs: every projection of every construction is an instance of it. -/
+lemma isConf_pmap {L' : Type*} {G : GES L} {H : GES L'}
+    (φ : G.Event → Option H.Event)
+    (hcon : ∀ {c : Set G.Event}, G.Consistent c → H.Consistent (pmapSet φ c))
+    (hen : ∀ {X : Finset G.Event} {u : G.Event} {x : H.Event},
+      G.enable X u → φ u = some x →
+      ∃ Y : Finset H.Event, (∀ y ∈ Y, y ∈ pmapSet φ (X : Set G.Event)) ∧ H.enable Y x)
+    {c : Set G.Event} (hc : G.isConf c) : H.isConf (pmapSet φ c) := by
+  refine ⟨hcon hc.1, ?_⟩
+  have key : ∀ n u, u ∈ c → G.rank c u = n →
+      ∀ x, φ u = some x → ∃ m, x ∈ H.secApprox (pmapSet φ c) m := by
+    intro n
+    induction n using Nat.strong_induction_on with
+    | _ n ih =>
+      rintro u hu rfl x hx
+      obtain ⟨k, hk⟩ : ∃ k, G.rank c u = k + 1 := by
+        have : G.rank c u ≠ 0 := by
+          intro h0
+          have hmem := rank_mem (hc.2 u hu)
+          rw [h0] at hmem
+          exact hmem
+        exact ⟨G.rank c u - 1, by omega⟩
+      obtain ⟨-, X, hXsub, hXen⟩ := hk ▸ rank_mem (hc.2 u hu)
+      obtain ⟨Y, hY, hYen⟩ := hen hXen hx
+      obtain ⟨N, hN⟩ := exists_bound (x := pmapSet φ c) (X := Y) fun y hy => by
+        obtain ⟨v, hv, hev⟩ := hY y hy
+        have hvc : v ∈ c := secApprox_subset _ (hXsub hv)
+        refine ih _ ?_ v hvc rfl y hev
+        exact hk ▸ Nat.lt_succ_of_le (rank_le (hXsub hv))
+      exact ⟨N + 1, ⟨u, hu, hx⟩, Y, hN, hYen⟩
+  rintro x ⟨u, hu, hx⟩
+  exact key _ u hu rfl x hx
+
+/-- Conversely, an event whose image is enabled extends a configuration, provided
+enabling sets pull back. The dual of `isConf_pmap`, and the only other
+securedness induction the semantics needs. -/
+lemma isConf_insert_pmap {L' : Type*} {G : GES L} {H : GES L'}
+    (φ : G.Event → Option H.Event)
+    {c : Set G.Event} {u : G.Event} {x : H.Event} (hc : G.isConf c) (hφ : φ u = some x)
+    (hcon : G.Consistent (c ∪ {u}))
+    (hback : ∀ Y : Finset H.Event, (∀ y ∈ Y, y ∈ pmapSet φ c) → H.enable Y x →
+      ∃ X : Finset G.Event, (X : Set G.Event) ⊆ c ∧ G.enable X u)
+    (hx : H.isConf (pmapSet φ c ∪ {x})) : G.isConf (c ∪ {u}) := by
+  refine ⟨hcon, ?_⟩
+  have hmono : ∀ {v : G.Event}, v ∈ c → ∃ n, v ∈ G.secApprox (c ∪ {u}) n := by
+    intro v hv
+    obtain ⟨n, hn⟩ := hc.2 v hv
+    exact ⟨n, secApprox_mono_set Set.subset_union_left n hn⟩
+  rintro v (hv | hv)
+  · exact hmono hv
+  · replace hv : v = u := hv
+    subst hv
+    -- the enabling set of `x` avoids `x`, so it lies in the image of `c`
+    obtain ⟨k, hk⟩ : ∃ k, H.rank (pmapSet φ c ∪ {x}) x = k + 1 := by
+      have : H.rank (pmapSet φ c ∪ {x}) x ≠ 0 := by
+        intro h0
+        have hmem := rank_mem (hx.2 x (Or.inr rfl))
+        rw [h0] at hmem
+        exact hmem
+      exact ⟨H.rank (pmapSet φ c ∪ {x}) x - 1, by omega⟩
+    obtain ⟨-, Y, hYsub, hYen⟩ := hk ▸ rank_mem (hx.2 x (Or.inr rfl))
+    have hYc : ∀ y ∈ Y, y ∈ pmapSet φ c := by
+      intro y hy
+      rcases secApprox_subset _ (hYsub hy) with h | h
+      · exact h
+      · exact absurd (hk ▸ Nat.lt_succ_of_le (rank_le (hYsub hy)) :
+          H.rank (pmapSet φ c ∪ {x}) y < H.rank (pmapSet φ c ∪ {x}) x)
+          (by rw [Set.mem_singleton_iff.mp h]; omega)
+    obtain ⟨X, hXc, hXen⟩ := hback Y hYc hYen
+    obtain ⟨N, hN⟩ := exists_bound (X := X) fun g hg => hmono (hXc (by exact_mod_cast hg))
+    exact ⟨N + 1, Or.inr rfl, X, hN, hXen⟩
+
 /-- The configuration family of a general event structure. -/
 def toFamily : ConfFamily L where
   Event := G.Event
