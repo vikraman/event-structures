@@ -1,7 +1,9 @@
 import Mathlib.Order.Basic
 import Mathlib.Data.Set.Finite.Basic
 
-/-- An event structure with binary conflict; events carry labels in `Label`. -/
+/-- An event structure with binary conflict; events carry
+labels in `Label`. The finite causes axiom is not assumed.
+-/
 structure PES (Label : Type*) where
   Event : Type*
   [poEvent : PartialOrder Event]
@@ -48,9 +50,8 @@ instance concurrent_symm : Std.Symm es.concurrent := by
   refine ⟨?_, hNotLe21, hNotLe12⟩
   exact (consistent_symm es).symm _ _ hCons
 
-/-- Minimal conflict relation: (e₁, e₂) is a minimal conflicting pair if they conflict
-    and there is no proper reduction of either that still produces a conflict.
-    Formally: e₁ # e₂ and for all e₁' ≤ e₁, e₂' ≤ e₂, if e₁' # e₂' then e₁' = e₁ ∧ e₂' = e₂ -/
+/-- `e₁` and `e₂` are in minimal conflict when they conflict and no pair of
+events below them does. -/
 @[simp]
 def minimalConflict (e₁ e₂ : es.Event) : Prop :=
   es.conflict e₁ e₂ ∧
@@ -68,13 +69,12 @@ instance minimalConflict_symm : Std.Symm es.minimalConflict := by
   have := hMin e₁' e₂' he₁ he₂ (es.conflict_symm.symm _ _ hConf')
   exact ⟨this.2, this.1⟩
 
-/-- If (e₁, e₂) is a minimal conflict, then e₁ and e₂ conflict. -/
+/-- If (e₁, e₂) are in minimal conflict, then e₁ and e₂ conflict. -/
 lemma minimalConflict_conflict {e₁ e₂ : es.Event} (h : es.minimalConflict e₁ e₂) :
     es.conflict e₁ e₂ :=
   h.1
 
-/-- If (e₁, e₂) is a minimal conflict and e₁' ≤ e₁, e₂' ≤ e₂ with e₁' ## e₂',
-    then e₁' = e₁ and e₂' = e₂. -/
+/-- A conflicting pair below a minimal conflict is that conflict. -/
 lemma minimalConflict_minimal {e₁ e₂ e₁' e₂' : es.Event} (h : es.minimalConflict e₁ e₂)
     (he₁ : e₁' ≤ e₁) (he₂ : e₂' ≤ e₂) (hConf : es.conflict e₁' e₂') :
     e₁' = e₁ ∧ e₂' = e₂ :=
@@ -86,9 +86,6 @@ lemma minimalConflict_minimal {e₁ e₂ e₁' e₂' : es.Event} (h : es.minimal
 /-- The future (upset) of an event: all events causally succeeding it. -/
 @[simp] def future (e : es.Event) : Set es.Event := {x | e ≤ x}
 
-/-- Every event has finitely many strict predecessors. -/
-def Finitary (es : PES L) : Prop := ∀ e : es.Event, Set.Finite (es.past e)
-
 /-- The past of any event is conflict-free. -/
 lemma past_conflict_free {e e₁ e₂ : es.Event}
     (h₁ : e₁ ≤ e) (h₂ : e₂ ≤ e) : ¬ es.conflict e₁ e₂ :=
@@ -97,8 +94,7 @@ lemma past_conflict_free {e e₁ e₂ : es.Event}
 
 end PES
 
-/-- Decidability data for an event structure: decidable equality on events and
-    decidable strict order. Together these yield decidable causality. -/
+/-- Decidable equality on events and a decidable strict order. -/
 class DecidablePES {L : Type*} (es : PES L) where
   decEq : DecidableEq es.Event
   decLt : DecidableRel ((· < ·) : es.Event → es.Event → Prop)

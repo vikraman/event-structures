@@ -204,11 +204,9 @@ lemma eq_hist_of_subset (hF : Stable F) {c : Set F.Event} (hc : F.Config c)
     (hist_least (hist_config hF hc htc) ?_ hist_mem)
   exact hist_least p.config hp (Prime.top_mem p)
 
-/-- Hence the prime event structure of complete primes is finitary: an event has
-finitely many causal predecessors. -/
-lemma toPES_finitary (G : GES L) (hF : Stable G.toFamily) :
-    PES.Finitary (toPES G.toFamily) := by
-  intro p
+/-- The prime event structure of complete primes has finite causes. -/
+lemma toPES_finitary (G : GES L) (hF : Stable G.toFamily) (p : (toPES G.toFamily).Event) :
+    Set.Finite ((toPES G.toFamily).past p) := by
   refine Set.Finite.of_finite_image (f := Prime.top) ?_ ?_
   · refine (prime_val_finite G hF p).subset ?_
     rintro t ⟨q, hq, rfl⟩
