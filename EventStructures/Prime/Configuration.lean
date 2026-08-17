@@ -1,8 +1,10 @@
-import EventStructures.Basic
+import EventStructures.Prime.Basic
+import EventStructures.Family.Basic
+import Mathlib.Order.Preorder.Finite
 import Mathlib.Data.Finset.Basic
 import Mathlib.Data.Set.Finite.Basic
 
-variable {L : Type*} (es : EventStructure L)
+variable {L : Type*} (es : PES L)
 
 /-- A set of events is a configuration if it is conflict-free and downward closed. -/
 @[simp] def isConf (X : Set es.Event) : Prop :=
@@ -17,7 +19,7 @@ def FinConf : Type := {X : Finset es.Event // isConf es (X : Set es.Event)}
 
 namespace Configuration
 
-/-- `c` enables `e`: consistent with `c`, and the past of `e` lies in `c`. -/
+/-- `c` enables `e` if `e` is consistent with `c`, and the past of `e` lies in `c`. -/
 def enables (c : Set es.Event) (e : es.Event) : Prop :=
   isConf es c ∧
   (∀ e' ∈ c, es.consistent e e') ∧
@@ -65,7 +67,7 @@ lemma isConf_empty : isConf es ∅ :=
 end Configuration
 
 /-- An injective, monotone, conflict-reflecting map of event structures. -/
-structure Emb {L : Type*} (E F : EventStructure L) where
+structure Emb {L : Type*} (E F : PES L) where
   f : E.Event → F.Event
   inj : Function.Injective f
   mono : ∀ {x y}, x ≤ y → f x ≤ f y
@@ -74,7 +76,7 @@ structure Emb {L : Type*} (E F : EventStructure L) where
 
 namespace Emb
 
-variable {L : Type*} {E F : EventStructure L} (ι : Emb E F)
+variable {L : Type*} {E F : PES L} (ι : Emb E F)
 
 lemma finite {c : Set F.Event} (h : c.Finite) : {y | ι.f y ∈ c}.Finite :=
   h.preimage ι.inj.injOn
@@ -102,3 +104,85 @@ lemma preimage_insert {α β : Type*} {ι : α → β} (hι : Function.Injective
     · exact Or.inl h
     · exact Or.inr (congrArg ι h)
 
+
+/-! ## Bridge to configuration families -/
+
+namespace PES
+
+variable {L : Type*} (P : PES L)
+
+/-- A prime event structure gives a configuration family. -/
+def toFamily : ConfFamily L where
+  Event := P.Event
+  Config := isConf P
+  label := P.label
+  empty_mem := Configuration.isConf_empty P
+  secured := by
+    intro x y hx hy hyx hfin hne
+    have hxy : (x \ y).Nonempty := by
+      by_contra h
+      rw [Set.not_nonempty_iff_eq_empty, Set.diff_eq_empty] at h
+      exact hne (Set.Subset.antisymm h hyx)
+    obtain ⟨e, hemem, hmax⟩ := hfin.exists_maximal hxy
+    refine ⟨e, hemem, fun h₁ h₂ => hx.1 h₁.1 h₂.1, ?_⟩
+    rintro z w ⟨hzx, hzne⟩ hle
+    refine ⟨hx.2 hzx hle, ?_⟩
+    rintro rfl
+    have hzdiff : z ∈ x \ y := ⟨hzx, fun hzy => hemem.2 (hy.2 hzy hle)⟩
+    exact hzne (Set.mem_singleton_iff.mpr (le_antisymm (hmax hzdiff hle) hle))
+
+@[simp] lemma toFamily_Event : P.toFamily.Event = P.Event := rfl
+
+@[simp] lemma toFamily_Config : P.toFamily.Config = isConf P := rfl
+
+/-- The family enabling relation agrees with the prime one. -/
+@[simp] lemma enables_iff {c : Set P.Event} {e : P.Event} :
+    P.toFamily.enables c e ↔ Configuration.enables P c e := by
+  constructor
+  · rintro ⟨hc, hext⟩
+    refine ⟨hc, fun e' he' => hext.1 (Or.inr rfl) (Or.inl he'), ?_⟩
+    intro x hx
+    rcases hext.2 (Or.inr rfl : e ∈ c ∪ {e}) (le_of_lt hx) with h | h
+    · exact h
+    · rw [Set.mem_singleton_iff] at h
+      subst h
+      exact absurd hx (lt_irrefl _)
+  · exact fun h => ⟨h.1, Configuration.enables_extension P h⟩
+
+
+/-- Derived independence coincides with concurrency, for distinct fresh events.
+This is what recovers the prime notion rather than assuming it. -/
+lemma indep_iff_concurrent {c : Set P.Event} {e₁ e₂ : P.Event}
+    (h₁ : Configuration.enables P c e₁) (h₂ : Configuration.enables P c e₂)
+    (hf₁ : e₁ ∉ c) (hf₂ : e₂ ∉ c) (hne : e₁ ≠ e₂) :
+    P.toFamily.Indep c e₁ e₂ ↔ P.concurrent e₁ e₂ := by
+  constructor
+  · rintro ⟨-, -, hst⟩
+    refine ⟨hst.1 (Or.inl (Or.inr rfl)) (Or.inr rfl), ?_, ?_⟩
+    · intro hle
+      rcases lt_or_eq_of_le hle with hlt | rfl
+      · exact hf₁ (h₂.2.2 hlt)
+      · exact hne rfl
+    · intro hle
+      rcases lt_or_eq_of_le hle with hlt | rfl
+      · exact hf₂ (h₁.2.2 hlt)
+      · exact hne rfl
+  · intro hconc
+    have hc1 : isConf P (c ∪ {e₁}) := ((PES.enables_iff P).mpr h₁).2
+    refine ⟨(PES.enables_iff P).mpr h₁, (PES.enables_iff P).mpr h₂, ?_, ?_⟩
+    · rintro x y (hx | rfl) (hy | rfl)
+      · exact hc1.1 hx hy
+      · rcases hx with hx | rfl
+        · exact fun hcf => h₂.2.1 x hx (P.conflict_symm hcf)
+        · exact hconc.1
+      · rcases hy with hy | rfl
+        · exact h₂.2.1 y hy
+        · exact fun hcf => hconc.1 (P.conflict_symm hcf)
+      · exact P.conflict_irrefl _
+    · rintro x y (hx | rfl) hle
+      · exact Or.inl (hc1.2 hx hle)
+      · rcases lt_or_eq_of_le hle with hlt | rfl
+        · exact Or.inl (Or.inl (h₂.2.2 hlt))
+        · exact Or.inr rfl
+
+end PES

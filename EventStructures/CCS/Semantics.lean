@@ -1,19 +1,20 @@
-import EventStructures.Basic
-import EventStructures.LTSI
-import EventStructures.Residual
+import EventStructures.Prime.Basic
+import EventStructures.LTS.Basic
+import EventStructures.Prime.LTSI
+import EventStructures.Prime.Residual
 import EventStructures.CCS.Syntax
 import EventStructures.CCS.Par
 
 /-! # Event-structure semantics of CCS, and its coincidence with the operational one -/
 
-open EventStructure Configuration
+open PES Configuration
 
 namespace CCS
 
 variable {Name : Type*}
 
 /-- Empty event structure. -/
-def empty : EventStructure (Action Name) where
+def empty : PES (Action Name) where
   Event := PEmpty
   poEvent :=
     { le := fun _ _ => True
@@ -29,8 +30,8 @@ def empty : EventStructure (Action Name) where
   conflict_hereditary := fun h _ => h
 
 /-- Prefix `α.E`: new initial event below all of `E`. -/
-def pfx (α : Action Name) (E : EventStructure (Action Name)) :
-    EventStructure (Action Name) where
+def pfx (α : Action Name) (E : PES (Action Name)) :
+    PES (Action Name) where
   Event := Option E.Event
   poEvent :=
     { le := fun x y => match x, y with
@@ -68,7 +69,7 @@ def pfx (α : Action Name) (E : EventStructure (Action Name)) :
     exact E.conflict_hereditary hxy hyz
 
 /-- Sum `E + F`: disjoint events, all cross-component pairs conflict. -/
-def sum (E F : EventStructure (Action Name)) : EventStructure (Action Name) where
+def sum (E F : PES (Action Name)) : PES (Action Name) where
   Event := E.Event ⊕ F.Event
   poEvent :=
     { le := fun x y => match x, y with
@@ -111,7 +112,7 @@ def sum (E F : EventStructure (Action Name)) : EventStructure (Action Name) wher
     · exact F.conflict_hereditary hxy hyz
 
 /-- Restriction `(ν)E`: keep events whose past doesn't use the bound name. -/
-def restrict (E : EventStructure (Action (Option Name))) : EventStructure (Action Name) where
+def restrict (E : PES (Action (Option Name))) : PES (Action Name) where
   Event := {e : E.Event // ∀ e' ≤ e, (E.label e').strip.isSome = true}
   poEvent :=
     { le := fun x y => x.1 ≤ y.1
@@ -129,10 +130,10 @@ def restrict (E : EventStructure (Action (Option Name))) : EventStructure (Actio
 
 
 /-- A configuration of `(ν)E` seen in `E`. -/
-def unres {E : EventStructure (Action (Option Name))} (c : Set (restrict E).Event) :
+def unres {E : PES (Action (Option Name))} (c : Set (restrict E).Event) :
     Set E.Event := {y | ∃ h, (⟨y, h⟩ : (restrict E).Event) ∈ c}
 
-variable {E : EventStructure (Action (Option Name))} {c : Set (restrict E).Event}
+variable {E : PES (Action (Option Name))} {c : Set (restrict E).Event}
 
 lemma mem_unres {x : E.Event} (hx : ∀ e' ≤ x, (E.label e').strip.isSome = true) :
     x ∈ unres c ↔ (⟨x, hx⟩ : (restrict E).Event) ∈ c := by
@@ -175,7 +176,7 @@ lemma unres_insert {x : E.Event} (hx : ∀ e' ≤ x, (E.label e').strip.isSome =
     · exact ⟨hm ▸ hx, Or.inr (Subtype.ext hm)⟩
 
 /-- `E ↪ α.E`. -/
-def embSome (α : Action Name) (E : EventStructure (Action Name)) : Emb E (pfx α E) where
+def embSome (α : Action Name) (E : PES (Action Name)) : Emb E (pfx α E) where
   f := some
   inj := Option.some_injective _
   mono h := h
@@ -183,7 +184,7 @@ def embSome (α : Action Name) (E : EventStructure (Action Name)) : Emb E (pfx �
   conf h := h
 
 /-- `E ↪ E + F`. -/
-def embInl (E F : EventStructure (Action Name)) : Emb E (sum E F) where
+def embInl (E F : PES (Action Name)) : Emb E (sum E F) where
   f := Sum.inl
   inj := Sum.inl_injective
   mono h := h
@@ -191,20 +192,20 @@ def embInl (E F : EventStructure (Action Name)) : Emb E (sum E F) where
   conf h := h
 
 /-- `F ↪ E + F`. -/
-def embInr (E F : EventStructure (Action Name)) : Emb F (sum E F) where
+def embInr (E F : PES (Action Name)) : Emb F (sum E F) where
   f := Sum.inr
   inj := Sum.inr_injective
   mono h := h
   smono h := h
   conf h := h
 
-@[simp] lemma embSome_f (α : Action Name) (E : EventStructure (Action Name)) :
+@[simp] lemma embSome_f (α : Action Name) (E : PES (Action Name)) :
     (embSome α E).f = some := rfl
-@[simp] lemma embInl_f (E F : EventStructure (Action Name)) : (embInl E F).f = Sum.inl := rfl
-@[simp] lemma embInr_f (E F : EventStructure (Action Name)) : (embInr E F).f = Sum.inr := rfl
+@[simp] lemma embInl_f (E F : PES (Action Name)) : (embInl E F).f = Sum.inl := rfl
+@[simp] lemma embInr_f (E F : PES (Action Name)) : (embInr E F).f = Sum.inr := rfl
 
 /-- Event-structure semantics of finitary CCS. -/
-def semantics {Name : Type*} : Process Name → EventStructure (Action Name)
+def semantics {Name : Type*} : Process Name → PES (Action Name)
   | .nil => empty
   | .pre α P => pfx α (semantics P)
   | .sum P Q => sum (semantics P) (semantics Q)

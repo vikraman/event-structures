@@ -1,5 +1,6 @@
-import EventStructures.Basic
-import EventStructures.LTSI
+import EventStructures.Prime.Basic
+import EventStructures.LTS.Basic
+import EventStructures.Prime.LTSI
 import EventStructures.CCS.Syntax
 import EventStructures.CCS.Par
 import EventStructures.CCS.Semantics
@@ -9,7 +10,7 @@ import EventStructures.CCS.Semantics
 The bisimulation relates a configuration `c` of `⟦P⟧` to the *residual process*
 `resid P c`, computed structurally. -/
 
-open EventStructure Configuration
+open PES Configuration
 
 namespace CCS
 

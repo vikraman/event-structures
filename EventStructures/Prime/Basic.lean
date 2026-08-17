@@ -1,7 +1,7 @@
 import Mathlib.Order.Basic
 
 /-- An event structure with binary conflict; events carry labels in `Label`. -/
-structure EventStructure (Label : Type*) where
+structure PES (Label : Type*) where
   Event : Type*
   [poEvent : PartialOrder Event]
   conflict : Event → Event → Prop
@@ -10,9 +10,9 @@ structure EventStructure (Label : Type*) where
   conflict_symm : Symmetric conflict
   conflict_hereditary : ∀ {e₁ e₂ e₃}, conflict e₁ e₂ → e₂ ≤ e₃ → conflict e₁ e₃
 
-namespace EventStructure
+namespace PES
 
-variable {L : Type*} (es : EventStructure L)
+variable {L : Type*} (es : PES L)
 
 instance : PartialOrder es.Event := es.poEvent
 
@@ -91,17 +91,17 @@ lemma past_conflict_free {e e₁ e₂ : es.Event}
   fun hc => es.conflict_irrefl e
     (es.conflict_hereditary (es.conflict_symm (es.conflict_hereditary hc h₂)) h₁)
 
-end EventStructure
+end PES
 
 /-- Decidability data for an event structure: decidable equality on events and
     decidable strict order. Together these yield decidable causality. -/
-class DecidableEventStructure {L : Type*} (es : EventStructure L) where
+class DecidablePES {L : Type*} (es : PES L) where
   decEq : DecidableEq es.Event
   decLt : DecidableRel ((· < ·) : es.Event → es.Event → Prop)
 
-attribute [instance] DecidableEventStructure.decEq DecidableEventStructure.decLt
+attribute [instance] DecidablePES.decEq DecidablePES.decLt
 
-instance EventStructure.decLe {L : Type*} (es : EventStructure L) [DecidableEventStructure es] :
+instance PES.decLe {L : Type*} (es : PES L) [DecidablePES es] :
     DecidableRel ((· ≤ ·) : es.Event → es.Event → Prop) := fun a b =>
   if hab : a = b then isTrue (hab ▸ le_refl a)
   else if hlt : a < b then isTrue (le_of_lt hlt)
