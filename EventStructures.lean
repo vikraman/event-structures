@@ -1,14 +1,11 @@
 import EventStructures.Family.Basic
-import EventStructures.Family.Emb
 import EventStructures.Prime.Basic
 import EventStructures.Prime.Configuration
 import EventStructures.Family.Trace
-import EventStructures.Prime.Trace
 import EventStructures.Family.Path
 import EventStructures.Family.Computation
 import EventStructures.Family.Reachability
 import EventStructures.Family.LTSI
-import EventStructures.Order.FinitePoset
 import EventStructures.Family.Rollback
 import EventStructures.Prime.Rollback
 import EventStructures.General.Basic
@@ -24,7 +21,6 @@ import EventStructures.Family.Replay
 import EventStructures.Prime.Replay
 import EventStructures.LTS.Basic
 import EventStructures.Prime.LTSI
-import EventStructures.Prime.Residual
 import EventStructures.CCS.Syntax
 import EventStructures.CCS.Par
 import EventStructures.CCS.Semantics

@@ -1,4 +1,5 @@
 import Mathlib.Order.Basic
+import Mathlib.Data.Set.Finite.Basic
 
 /-- An event structure with binary conflict; events carry labels in `Label`. -/
 structure PES (Label : Type*) where
@@ -84,6 +85,9 @@ lemma minimalConflict_minimal {e₁ e₂ e₁' e₂' : es.Event} (h : es.minimal
 
 /-- The future (upset) of an event: all events causally succeeding it. -/
 @[simp] def future (e : es.Event) : Set es.Event := {x | e ≤ x}
+
+/-- Every event has finitely many strict predecessors. -/
+def Finitary (es : PES L) : Prop := ∀ e : es.Event, Set.Finite (es.past e)
 
 /-- The past of any event is conflict-free. -/
 lemma past_conflict_free {e e₁ e₂ : es.Event}

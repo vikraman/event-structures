@@ -1,20 +1,18 @@
-import EventStructures.Prime.Basic
 import EventStructures.LTS.Basic
-import EventStructures.Prime.LTSI
-import EventStructures.CCS.Syntax
-import EventStructures.CCS.Par
 import EventStructures.CCS.Semantics
 
-/-! # Bisimulation between the operational and denotational semantics of CCS
+/-! # Coincidence of the operational and denotational semantics of CCS
 
-The bisimulation relates a configuration `c` of `⟦P⟧` to the *residual process*
+The bisimulation relates a configuration `c` of `⟦P⟧` to the residual process
 `resid P c`, computed structurally. -/
 
-open PES Configuration
+open CCS ConfFamily
 
 namespace CCS
 
 universe u
+
+variable {Name : Type u}
 
 open scoped Classical in
 /-- The process remaining after a configuration has fired. -/
@@ -26,10 +24,8 @@ noncomputable def resid : ∀ {Name : Type u}, (P : Process Name) →
       if ∃ e, Sum.inl e ∈ c then resid P {e | Sum.inl e ∈ c}
       else if ∃ f, Sum.inr f ∈ c then resid Q {f | Sum.inr f ∈ c}
       else .sum P Q
-  | _, .par P Q, c => .par (resid P (projL (flat c))) (resid Q (projR (flat c)))
+  | _, .par P Q, c => .par (resid P (projL c)) (resid Q (projR c))
   | _, .res P, c => .res (resid P (unres c))
-
-variable {Name : Type u}
 
 @[simp] lemma resid_nil (c : Set (semantics (.nil : Process Name)).Event) :
     resid .nil c = .nil := rfl
@@ -59,7 +55,7 @@ lemma resid_sum_none {P Q : Process Name} {c : Set (semantics (.sum P Q)).Event}
   rw [resid]; simp [h1, h2]
 
 lemma resid_par {P Q : Process Name} (c : Set (semantics (.par P Q)).Event) :
-    resid (.par P Q) c = .par (resid P (projL (flat c))) (resid Q (projR (flat c))) := by
+    resid (.par P Q) c = .par (resid P (projL c)) (resid Q (projR c)) := by
   rw [resid]
 
 lemma resid_res {P : Process (Option Name)} (c : Set (semantics (.res P)).Event) :
@@ -72,32 +68,39 @@ lemma resid_res {P : Process (Option Name)} (c : Set (semantics (.res P)).Event)
   | _, .sum P Q => resid_sum_none (by simp) (by simp)
   | _, .par P Q => by
       rw [resid_par]
-      have h : flat (∅ : Set (semantics (.par P Q)).Event) = ∅ := by
-        ext t; simp only [flat, Set.mem_empty_iff_false, Set.mem_ofPred_eq, iff_false]
-        exact fun ⟨_, hx, _⟩ => hx
-      rw [h, projL_empty, projR_empty, resid_empty P, resid_empty Q]
+      have hL : projL (∅ : Set (semantics (.par P Q)).Event) = ∅ := by
+        ext e; constructor
+        · rintro ⟨u, hu, -⟩; exact hu
+        · exact fun h => h.elim
+      have hR : projR (∅ : Set (semantics (.par P Q)).Event) = ∅ := by
+        ext f; constructor
+        · rintro ⟨u, hu, -⟩; exact hu
+        · exact fun h => h.elim
+      rw [hL, hR, resid_empty P, resid_empty Q]
   | _, .res P => by
       rw [resid_res]
-      have h : unres (∅ : Set (semantics (.res P)).Event) = ∅ := by ext e; simp [unres]
+      have h : unres (∅ : Set (semantics (.res P)).Event) = ∅ := by
+        ext y; constructor
+        · rintro ⟨h, hm⟩; exact hm
+        · exact fun h => h.elim
       rw [h, resid_empty P]
 
-
-/-- Completeness: every event enabled at `c` is a step of the residual process. -/
+/-- Completeness: firing an enabled event is a step of the residual process. -/
 lemma den_to_op : ∀ {Name : Type u} (P : Process Name) (c : Set (semantics P).Event)
-    (e : (semantics P).Event), c.Finite → isConf (semantics P) c →
-    Configuration.enables (semantics P) c e → e ∉ c →
+    (e : (semantics P).Event), (semantics P).toGES.isConf c →
+    (semantics P).toGES.isConf (c ∪ {e}) → e ∉ c →
     Step (resid P c) ((semantics P).label e) (resid P (c ∪ {e}))
-  | _, .nil, _, e, _, _, _, _ => e.elim
-  | _, .pre α P, c, e, hfin, hc, hen, hfr => by
+  | _, .nil, _, e, _, _, _ => e.elim
+  | _, .pre α P, c, e, hc, hins, hfr => by
     cases e with
     | none =>
         have hc0 : c = ∅ := by
-          ext x
+          ext z
           simp only [Set.mem_empty_iff_false, iff_false]
-          intro hx
-          cases x with
-          | none => exact hfr hx
-          | some z => exact hfr (hc.2 hx trivial)
+          intro hz
+          cases z with
+          | none => exact hfr hz
+          | some w => exact hfr (pfx_none_mem hc hz)
         subst hc0
         rw [resid_pre_neg (by simp)]
         have h1 : (∅ ∪ {none} : Set (semantics (.pre α P)).Event) = {none} := by simp
@@ -107,121 +110,101 @@ lemma den_to_op : ∀ {Name : Type u} (P : Process Name) (c : Set (semantics P).
         rw [h2, resid_empty]
         exact Step.pre
     | some x =>
-        have hnone : none ∈ c :=
-          hen.2.2 (show (none : (semantics (.pre α P)).Event) < some x from trivial)
+        have hnone : none ∈ c := by
+          rcases pfx_none_mem hins (Or.inr rfl : some x ∈ c ∪ {some x}) with h | h
+          · exact h
+          · exact absurd (Set.mem_singleton_iff.mp h) (by simp)
         rw [resid_pre_pos hnone, resid_pre_pos (Or.inl hnone : none ∈ c ∪ {some x}),
-          preimage_insert (Option.some_injective _)]
-        exact den_to_op P _ x ((embSome α _).finite hfin) ((embSome α _).conf_restrict hc)
-          ((embSome α _).enables_restrict hc hen) hfr
-  | _, .sum P Q, c, e, hfin, hc, hen, hfr => by
+          someInv_insert]
+        exact den_to_op P _ x (pfx_isConf hc) (someInv_insert ▸ pfx_isConf hins)
+          (fun h => hfr h)
+  | _, .sum P Q, c, e, hc, hins, hfr => by
     cases e with
     | inl x =>
         have hnoR : ¬ ∃ f, Sum.inr f ∈ c := by
-          rintro ⟨f, hf⟩; exact hen.2.1 _ hf trivial
+          rintro ⟨f, hf⟩
+          exact sum_not_mixed hins (Or.inr rfl : Sum.inl x ∈ c ∪ {Sum.inl x}) (Or.inl hf)
         have hexNew : ∃ y, Sum.inl y ∈ c ∪ ({Sum.inl x} : Set (semantics (.sum P Q)).Event) :=
           ⟨x, Or.inr rfl⟩
+        have ih := den_to_op P _ x (sum_isConf_L hc) (inlInv_insert ▸ sum_isConf_L hins)
+          (fun h => hfr h)
         by_cases hex : ∃ y, Sum.inl y ∈ c
-        · rw [resid_sum_l hex, resid_sum_l hexNew, preimage_insert Sum.inl_injective]
-          exact den_to_op P _ x ((embInl _ _).finite hfin) ((embInl _ _).conf_restrict hc)
-            ((embInl _ _).enables_restrict hc hen) hfr
+        · rw [resid_sum_l hex, resid_sum_l hexNew, inlInv_insert]
+          exact ih
         · have hc0 : {y : (semantics P).Event | Sum.inl y ∈ c} = ∅ := by
             ext y
             simp only [Set.mem_empty_iff_false, iff_false]
             exact fun h => hex ⟨y, h⟩
-          rw [resid_sum_none hex hnoR, resid_sum_l hexNew,
-            preimage_insert Sum.inl_injective, hc0]
-          have ih := den_to_op P _ x ((embInl _ _).finite hfin) ((embInl _ _).conf_restrict hc)
-            ((embInl _ _).enables_restrict hc hen) hfr
-          simp only [embInl_f] at ih
+          rw [resid_sum_none hex hnoR, resid_sum_l hexNew, inlInv_insert, hc0]
           rw [hc0, resid_empty] at ih
           exact Step.sumL ih
     | inr y =>
         have hnoL : ¬ ∃ e, Sum.inl e ∈ c := by
-          rintro ⟨e, he⟩; exact hen.2.1 _ he trivial
+          rintro ⟨e, he⟩
+          exact sum_not_mixed hins (Or.inl he) (Or.inr rfl : Sum.inr y ∈ c ∪ {Sum.inr y})
         have hnoL' : ¬ ∃ e, Sum.inl e ∈ c ∪ ({Sum.inr y} : Set (semantics (.sum P Q)).Event) := by
           rintro ⟨e, he | he⟩
           · exact hnoL ⟨e, he⟩
-          · exact absurd he (by simp)
+          · exact absurd (Set.mem_singleton_iff.mp he) (by simp)
         have hexNew : ∃ z, Sum.inr z ∈ c ∪ ({Sum.inr y} : Set (semantics (.sum P Q)).Event) :=
           ⟨y, Or.inr rfl⟩
+        have ih := den_to_op Q _ y (sum_isConf_R hc) (inrInv_insert ▸ sum_isConf_R hins)
+          (fun h => hfr h)
         by_cases hex : ∃ z, Sum.inr z ∈ c
-        · rw [resid_sum_r hnoL hex, resid_sum_r hnoL' hexNew, preimage_insert Sum.inr_injective]
-          exact den_to_op Q _ y ((embInr _ _).finite hfin) ((embInr _ _).conf_restrict hc)
-            ((embInr _ _).enables_restrict hc hen) hfr
+        · rw [resid_sum_r hnoL hex, resid_sum_r hnoL' hexNew, inrInv_insert]
+          exact ih
         · have hc0 : {z : (semantics Q).Event | Sum.inr z ∈ c} = ∅ := by
             ext z
             simp only [Set.mem_empty_iff_false, iff_false]
             exact fun h => hex ⟨z, h⟩
-          rw [resid_sum_none hnoL hex, resid_sum_r hnoL' hexNew,
-            preimage_insert Sum.inr_injective, hc0]
-          have ih := den_to_op Q _ y ((embInr _ _).finite hfin) ((embInr _ _).conf_restrict hc)
-            ((embInr _ _).enables_restrict hc hen) hfr
-          simp only [embInr_f] at ih
+          rw [resid_sum_none hnoL hex, resid_sum_r hnoL' hexNew, inrInv_insert, hc0]
           rw [hc0, resid_empty] at ih
           exact Step.sumR ih
-  | _, .res P, c, e, hfin, hc, hen, hfr => by
+  | _, .res P, c, e, hc, hins, hfr => by
       obtain ⟨x, hx⟩ := e
       rw [resid_res, resid_res, unres_insert]
       refine Step.res ?_
-      have ih := den_to_op P _ x (unres_finite hfin) (unres_isConf hc) (unres_enables hen)
+      have ih := den_to_op P _ x (restrict_isConf hc)
+        (unres_insert (c := c) hx ▸ restrict_isConf hins)
         (fun h => hfr ((mem_unres hx).mp h))
       rwa [show (semantics P).label x
             = Action.map some ((semantics (.res P)).label ⟨x, hx⟩) from
           Action.map_some_of_strip (Option.some_get _).symm] at ih
-  | _, .par P Q, c, q, hfin, hc, hen, hfr => by
-      have hXfin := projL_finite (flat_finite hfin)
-      have hYfin := projR_finite (flat_finite hfin)
-      have hXconf := (isState_flat hc).2.2.1
-      have hYconf := (isState_flat hc).2.2.2
-      have hlbl : (semantics (.par P Q)).label q = q.top.label := rfl
-      cases htop : q.top with
-      | left x =>
-        have hevL : q.top.evL = some x := by rw [htop]; rfl
-        have hevR : q.top.evR = (none : Option (semantics Q).Event) := by rw [htop]; rfl
-        obtain ⟨hxen, hxfr⟩ := comp_enables_L hc hen hfr hevL
-        erw [resid_par, resid_par, flat_insert_projL hen.2.2 hevL,
-          flat_insert_projR_none hen.2.2 hevR, hlbl, htop]
-        exact Step.parL (den_to_op P _ x hXfin hXconf hxen hxfr)
-      | right y =>
-        have hevL : q.top.evL = (none : Option (semantics P).Event) := by rw [htop]; rfl
-        have hevR : q.top.evR = some y := by rw [htop]; rfl
-        obtain ⟨hyen, hyfr⟩ := comp_enables_R hc hen hfr hevR
-        erw [resid_par, resid_par, flat_insert_projL_none hen.2.2 hevL,
-          flat_insert_projR hen.2.2 hevR, hlbl, htop]
-        exact Step.parR (den_to_op Q _ y hYfin hYconf hyen hyfr)
-      | sync x y hpf =>
-        have hevL : q.top.evL = some x := by rw [htop]; rfl
-        have hevR : q.top.evR = some y := by rw [htop]; rfl
-        obtain ⟨hxen, hxfr⟩ := comp_enables_L hc hen hfr hevL
-        obtain ⟨hyen, hyfr⟩ := comp_enables_R hc hen hfr hevR
+  | _, .par P Q, c, t, hc, hins, hfr => by
+      rcases t with x | y | ⟨x, y, hpf⟩
+      · obtain ⟨hxen, hxfr⟩ := enables_projL hins hfr (rfl : (Tag.left x).evL = some x)
+        rw [resid_par, resid_par, projL_insert (rfl : (Tag.left x).evL = some x),
+          projR_insert_none (rfl : (Tag.left x : Tag _ (semantics Q)).evR = none)]
+        exact Step.parL (den_to_op P _ x (projL_isConf hc) hxen hxfr)
+      · obtain ⟨hyen, hyfr⟩ := enables_projR hins hfr (rfl : (Tag.right y).evR = some y)
+        rw [resid_par, resid_par,
+          projL_insert_none (rfl : (Tag.right y : Tag (semantics P) _).evL = none),
+          projR_insert (rfl : (Tag.right y).evR = some y)]
+        exact Step.parR (den_to_op Q _ y (projR_isConf hc) hyen hyfr)
+      · obtain ⟨hxen, hxfr⟩ := enables_projL hins hfr (rfl : (Tag.sync x y hpf).evL = some x)
+        obtain ⟨hyen, hyfr⟩ := enables_projR hins hfr (rfl : (Tag.sync x y hpf).evR = some y)
         obtain ⟨a, hax, hay⟩ := hpf
-        erw [resid_par, resid_par, flat_insert_projL hen.2.2 hevL,
-          flat_insert_projR hen.2.2 hevR, hlbl, htop]
-        exact Step.parSync (a := a) (hax ▸ den_to_op P _ x hXfin hXconf hxen hxfr)
-          (hay ▸ den_to_op Q _ y hYfin hYconf hyen hyfr)
+        rw [resid_par, resid_par, projL_insert (rfl : (Tag.sync x y _).evL = some x),
+          projR_insert (rfl : (Tag.sync x y _).evR = some y)]
+        exact Step.parSync (a := a)
+          (hax ▸ den_to_op P _ x (projL_isConf hc) hxen hxfr)
+          (hay ▸ den_to_op Q _ y (projR_isConf hc) hyen hyfr)
 
-/-- Soundness: every step of the residual process is an event enabled at `c`. -/
+/-- Soundness: every step of the residual process fires an enabled event. -/
 lemma op_to_den : ∀ {Name : Type u} (P : Process Name) (c : Set (semantics P).Event)
-    (α : Action Name) (Q' : Process Name), c.Finite → isConf (semantics P) c →
+    (α : Action Name) (Q' : Process Name), (semantics P).toGES.isConf c →
     Step (resid P c) α Q' →
-    ∃ e, Configuration.enables (semantics P) c e ∧ e ∉ c ∧
+    ∃ e, (semantics P).toGES.isConf (c ∪ {e}) ∧ e ∉ c ∧
       (semantics P).label e = α ∧ Q' = resid P (c ∪ {e})
-  | _, .nil, c, α, Q', _, _, hstep => by
+  | _, .nil, c, α, Q', _, hstep => by
       rw [resid_nil] at hstep; cases hstep
-  | _, .pre α₀ P, c, α, Q', hfin, hc, hstep => by
+  | _, .pre α₀ P, c, α, Q', hc, hstep => by
       by_cases hnone : none ∈ c
       · rw [resid_pre_pos hnone] at hstep
-        obtain ⟨x, hxen, hxfr, hxlbl, hxQ⟩ := op_to_den P _ α Q'
-          ((embSome α₀ _).finite hfin) ((embSome α₀ _).conf_restrict hc) hstep
-        refine ⟨some x, ⟨hc, ?_, ?_⟩, hxfr, hxlbl, ?_⟩
-        · rintro (_ | z) hz
-          · exact fun h => h
-          · exact hxen.2.1 z hz
-        · rintro (_ | z) hz
-          · exact hnone
-          · exact hxen.2.2 hz
-        · rw [resid_pre_pos (Or.inl hnone : none ∈ c ∪ {some x}),
-            preimage_insert (Option.some_injective _)]
+        obtain ⟨x, hxins, hxfr, hxlbl, hxQ⟩ := op_to_den P _ α Q' (pfx_isConf hc) hstep
+        refine ⟨some x, ?_, fun h => hxfr h, hxlbl, ?_⟩
+        · exact pfx_isConf_insert hc hnone (someInv_insert ▸ hxins) (fun h => hxfr h)
+        · rw [resid_pre_pos (Or.inl hnone : none ∈ c ∪ {some x}), someInv_insert]
           exact hxQ
       · rw [resid_pre_neg hnone] at hstep
         cases hstep
@@ -231,50 +214,51 @@ lemma op_to_den : ∀ {Name : Type u} (P : Process Name) (c : Set (semantics P).
           intro hz
           cases z with
           | none => exact hnone hz
-          | some w => exact hnone (hc.2 hz trivial)
+          | some w => exact hnone (pfx_none_mem hc hz)
         subst hc0
-        refine ⟨none, ⟨hc, fun z hz => absurd hz (by simp), fun z hz => by
-            cases z <;> exact hz.elim⟩, by simp, rfl, ?_⟩
-        rw [resid_pre_pos (by simp : none ∈ (∅ : Set (semantics (.pre α₀ P)).Event) ∪ {none})]
-        have h2 : {y : (semantics P).Event |
-            some y ∈ (∅ : Set (semantics (.pre α₀ P)).Event) ∪ {none}} = ∅ := by
-          ext y; simp
-        rw [h2, resid_empty]
-  | _, .sum P Q, c, α, Q', hfin, hc, hstep => by
+        refine ⟨none, ?_, by simp, rfl, ?_⟩
+        · refine ⟨fun W hW V hV => ?_, ?_⟩
+          · have : V = ∅ := by
+              refine Finset.eq_empty_of_forall_notMem fun z hz => ?_
+              obtain ⟨u, hu, hev⟩ : ∃ u, u ∈ (W : Set (Option (semantics P).Event)) ∧ u = some z :=
+                ⟨some z, hV (by exact_mod_cast hz), rfl⟩
+              rcases hW hu with h | h
+              · exact h.elim
+              · exact absurd (hev ▸ Set.mem_singleton_iff.mp h) (by simp)
+            exact this ▸ (semantics P).con_empty
+          · rintro z (hz | hz)
+            · exact hz.elim
+            · replace hz : z = none := hz
+              subst hz
+              exact ⟨1, Or.inr rfl, ∅, by simp, trivial⟩
+        · rw [resid_pre_pos (by simp : none ∈ (∅ : Set (semantics (.pre α₀ P)).Event) ∪ {none})]
+          have h2 : {y : (semantics P).Event |
+              some y ∈ (∅ : Set (semantics (.pre α₀ P)).Event) ∪ {none}} = ∅ := by
+            ext y; simp
+          rw [h2, resid_empty]
+  | _, .sum P Q, c, α, Q', hc, hstep => by
       by_cases hexL : ∃ e, Sum.inl e ∈ c
       · have hnoR : ¬ ∃ f, Sum.inr f ∈ c := by
           rintro ⟨f, hf⟩
           obtain ⟨e, he⟩ := hexL
-          exact hc.1 he hf trivial
+          exact sum_not_mixed hc he hf
         rw [resid_sum_l hexL] at hstep
-        obtain ⟨x, hxen, hxfr, hxlbl, hxQ⟩ := op_to_den P _ α Q'
-          ((embInl _ _).finite hfin) ((embInl _ _).conf_restrict hc) hstep
-        refine ⟨Sum.inl x, ⟨hc, ?_, ?_⟩, hxfr, hxlbl, ?_⟩
-        · rintro (z | z) hz
-          · exact hxen.2.1 z hz
-          · exact absurd ⟨z, hz⟩ hnoR
-        · rintro (z | z) hz
-          · exact hxen.2.2 hz
-          · exact hz.elim
-        · rw [resid_sum_l ⟨x, Or.inr rfl⟩, preimage_insert Sum.inl_injective]
-          exact hxQ
+        obtain ⟨x, hxins, hxfr, hxlbl, hxQ⟩ := op_to_den P _ α Q' (sum_isConf_L hc) hstep
+        refine ⟨Sum.inl x, sum_isConf_insert_L hc hnoR (inlInv_insert ▸ hxins),
+          fun h => hxfr h, hxlbl, ?_⟩
+        rw [resid_sum_l ⟨x, Or.inr rfl⟩, inlInv_insert]
+        exact hxQ
       by_cases hexR : ∃ f, Sum.inr f ∈ c
       · rw [resid_sum_r hexL hexR] at hstep
-        obtain ⟨y, hyen, hyfr, hylbl, hyQ⟩ := op_to_den Q _ α Q'
-          ((embInr _ _).finite hfin) ((embInr _ _).conf_restrict hc) hstep
-        refine ⟨Sum.inr y, ⟨hc, ?_, ?_⟩, hyfr, hylbl, ?_⟩
-        · rintro (z | z) hz
-          · exact absurd ⟨z, hz⟩ hexL
-          · exact hyen.2.1 z hz
-        · rintro (z | z) hz
-          · exact hz.elim
-          · exact hyen.2.2 hz
-        · have hnoL' : ¬ ∃ e, Sum.inl e ∈ c ∪ ({Sum.inr y} : Set (semantics (.sum P Q)).Event) := by
-            rintro ⟨e, he | he⟩
-            · exact hexL ⟨e, he⟩
-            · exact absurd he (by simp)
-          rw [resid_sum_r hnoL' ⟨y, Or.inr rfl⟩, preimage_insert Sum.inr_injective]
-          exact hyQ
+        obtain ⟨y, hyins, hyfr, hylbl, hyQ⟩ := op_to_den Q _ α Q' (sum_isConf_R hc) hstep
+        have hnoL' : ¬ ∃ e, Sum.inl e ∈ c ∪ ({Sum.inr y} : Set (semantics (.sum P Q)).Event) := by
+          rintro ⟨e, he | he⟩
+          · exact hexL ⟨e, he⟩
+          · exact absurd (Set.mem_singleton_iff.mp he) (by simp)
+        refine ⟨Sum.inr y, sum_isConf_insert_R hc hexL (inrInv_insert ▸ hyins),
+          fun h => hyfr h, hylbl, ?_⟩
+        rw [resid_sum_r hnoL' ⟨y, Or.inr rfl⟩, inrInv_insert]
+        exact hyQ
       · have hc0 : c = ∅ := by
           ext z
           simp only [Set.mem_empty_iff_false, iff_false]
@@ -284,109 +268,84 @@ lemma op_to_den : ∀ {Name : Type u} (P : Process Name) (c : Set (semantics P).
           | inr w => exact hexR ⟨w, hz⟩
         subst hc0
         rw [resid_sum_none hexL hexR] at hstep
-        have hcEP := Configuration.isConf_empty (semantics P)
-        have hcEQ := Configuration.isConf_empty (semantics Q)
-        have hcES := Configuration.isConf_empty (semantics (.sum P Q))
+        have hcE : (semantics (.sum P Q)).toGES.isConf ∅ := GES.isConf_empty _
         cases hstep with
         | sumL hs =>
-          obtain ⟨x, hxen, hxfr, hxlbl, hxQ⟩ :=
-            op_to_den P ∅ α _ Set.finite_empty hcEP (by rw [resid_empty]; exact hs)
-          refine ⟨Sum.inl x, ⟨hcES, fun z hz => absurd hz (by simp), fun z hz => ?_⟩,
-            by simp, hxlbl, ?_⟩
-          · cases z with
-            | inl w => exact hxen.2.2 hz
-            | inr w => exact hz.elim
-          · rw [resid_sum_l ⟨x, Or.inr rfl⟩]
-            rw [preimage_insert Sum.inl_injective]; exact hxQ
+          obtain ⟨x, hxins, hxfr, hxlbl, hxQ⟩ :=
+            op_to_den P ∅ α _ (GES.isConf_empty _) (by rw [resid_empty]; exact hs)
+          have hemp : {z : (semantics P).Event |
+              Sum.inl z ∈ (∅ : Set (semantics (.sum P Q)).Event)} = ∅ := by ext z; simp
+          refine ⟨Sum.inl x, sum_isConf_insert_L hcE hexR ?_, by simp, hxlbl, ?_⟩
+          · rw [hemp]; exact hxins
+          · rw [resid_sum_l ⟨x, Or.inr rfl⟩, inlInv_insert, hemp]; exact hxQ
         | sumR hs =>
-          obtain ⟨y, hyen, hyfr, hylbl, hyQ⟩ :=
-            op_to_den Q ∅ α _ Set.finite_empty hcEQ (by rw [resid_empty]; exact hs)
+          obtain ⟨y, hyins, hyfr, hylbl, hyQ⟩ :=
+            op_to_den Q ∅ α _ (GES.isConf_empty _) (by rw [resid_empty]; exact hs)
+          have hemp : {z : (semantics Q).Event |
+              Sum.inr z ∈ (∅ : Set (semantics (.sum P Q)).Event)} = ∅ := by ext z; simp
           have hnoL' : ¬ ∃ e, Sum.inl e ∈ (∅ : Set (semantics (.sum P Q)).Event) ∪ {Sum.inr y} := by
             rintro ⟨e, he | he⟩
             · exact he.elim
-            · exact absurd he (by simp)
-          refine ⟨Sum.inr y, ⟨hcES, fun z hz => absurd hz (by simp), fun z hz => ?_⟩,
-            by simp, hylbl, ?_⟩
-          · cases z with
-            | inl w => exact hz.elim
-            | inr w => exact hyen.2.2 hz
-          · rw [resid_sum_r hnoL' ⟨y, Or.inr rfl⟩]
-            rw [preimage_insert Sum.inr_injective]; exact hyQ
-  | _, .res P, c, α, Q', hfin, hc, hstep => by
+            · exact absurd (Set.mem_singleton_iff.mp he) (by simp)
+          refine ⟨Sum.inr y, sum_isConf_insert_R hcE hexL ?_, by simp, hylbl, ?_⟩
+          · rw [hemp]; exact hyins
+          · rw [resid_sum_r hnoL' ⟨y, Or.inr rfl⟩, inrInv_insert, hemp]; exact hyQ
+  | _, .res P, c, α, Q', hc, hstep => by
       rw [resid_res] at hstep
       cases hstep with
       | @res _ A _ A' hs =>
-        obtain ⟨x, hxen, hxfr, hxlbl, hxQ⟩ :=
-          op_to_den P _ _ A' (unres_finite hfin) (unres_isConf hc) hs
-        have hx : ∀ x' ≤ x, ((semantics P).label x').strip.isSome = true := by
-          intro x' hle
-          rcases lt_or_eq_of_le hle with hlt | rfl
-          · exact (hxen.2.2 hlt).choose x' le_rfl
-          · rw [hxlbl]; simp
-        refine ⟨⟨x, hx⟩, ⟨hc, ?_, ?_⟩, ?_, ?_, ?_⟩
-        · rintro ⟨z, hz⟩ hzc; exact hxen.2.1 z ⟨hz, hzc⟩
-        · rintro ⟨z, hz⟩ hlt; exact (mem_unres hz).mp (hxen.2.2 hlt)
-        · exact fun hmem => hxfr ((mem_unres hx).mpr hmem)
+        obtain ⟨x, hxins, hxfr, hxlbl, hxQ⟩ := op_to_den P _ _ A' (restrict_isConf hc) hs
+        have hx : ((semantics P).label x).strip.isSome = true := by rw [hxlbl]; simp
+        refine ⟨⟨x, hx⟩, restrict_isConf_insert hc (unres_insert (c := c) hx ▸ hxins),
+          fun hmem => hxfr ((mem_unres hx).mpr hmem), ?_, ?_⟩
         · change ((semantics P).label x).strip.get _ = α
           exact Option.some.inj
             ((Option.some_get _).trans (by rw [hxlbl]; exact Action.strip_map α))
         · rw [resid_res, unres_insert, hxQ]
-  | _, .par P Q, c, α, Q', hfin, hc, hstep => by
+          rfl
+  | _, .par P Q, c, α, Q', hc, hstep => by
       rw [resid_par] at hstep
-      have hXfin := projL_finite (flat_finite hfin)
-      have hYfin := projR_finite (flat_finite hfin)
-      have hXconf := (isState_flat hc).2.2.1
-      have hYconf := (isState_flat hc).2.2.2
       cases hstep with
       | @parL _ _ _ A' _ hs =>
-        obtain ⟨x, hxen, hxfr, hxlbl, hxQ⟩ := op_to_den P _ α A' hXfin hXconf hs
-        obtain ⟨q, hqen, hqfr, hqtop⟩ := exists_event_tag hfin hc (Tag.left x)
-          (by tag_side ⟨hxen, hxfr⟩) (by tag_side)
-        have hevL : q.top.evL = some x := by rw [hqtop]; rfl
-        have hevR : q.top.evR = (none : Option (semantics Q).Event) := by rw [hqtop]; rfl
-        refine ⟨q, hqen, hqfr, ?_, ?_⟩
-        · change q.top.label = α
-          rw [hqtop]; exact hxlbl
-        · erw [resid_par, flat_insert_projL hqen.2.2 hevL,
-            flat_insert_projR_none hqen.2.2 hevR, ← hxQ]
+        obtain ⟨x, hxins, hxfr, hxlbl, hxQ⟩ := op_to_den P _ α A' (projL_isConf hc) hs
+        refine ⟨Tag.left x, isConf_insert_tag hc ?_ ?_, ?_, hxlbl, ?_⟩
+        · rintro x' hx'
+          exact ⟨(Option.some.inj hx') ▸ hxins, (Option.some.inj hx') ▸ hxfr⟩
+        · rintro y' hy'; exact absurd hy' (by simp [Tag.evR])
+        · exact fun hmem => hxfr ⟨_, hmem, rfl⟩
+        · rw [resid_par, projL_insert (rfl : (Tag.left x).evL = some x),
+            projR_insert_none (rfl : (Tag.left x : Tag _ (semantics Q)).evR = none), ← hxQ]
       | @parR _ _ _ _ B' hs =>
-        obtain ⟨y, hyen, hyfr, hylbl, hyQ⟩ := op_to_den Q _ α B' hYfin hYconf hs
-        obtain ⟨q, hqen, hqfr, hqtop⟩ := exists_event_tag hfin hc (Tag.right y)
-          (by tag_side) (by tag_side ⟨hyen, hyfr⟩)
-        have hevL : q.top.evL = (none : Option (semantics P).Event) := by rw [hqtop]; rfl
-        have hevR : q.top.evR = some y := by rw [hqtop]; rfl
-        refine ⟨q, hqen, hqfr, ?_, ?_⟩
-        · change q.top.label = α
-          rw [hqtop]; exact hylbl
-        · erw [resid_par, flat_insert_projL_none hqen.2.2 hevL,
-            flat_insert_projR hqen.2.2 hevR, ← hyQ]
+        obtain ⟨y, hyins, hyfr, hylbl, hyQ⟩ := op_to_den Q _ α B' (projR_isConf hc) hs
+        refine ⟨Tag.right y, isConf_insert_tag hc ?_ ?_, ?_, hylbl, ?_⟩
+        · rintro x' hx'; exact absurd hx' (by simp [Tag.evL])
+        · rintro y' hy'
+          exact ⟨(Option.some.inj hy') ▸ hyins, (Option.some.inj hy') ▸ hyfr⟩
+        · exact fun hmem => hyfr ⟨_, hmem, rfl⟩
+        · rw [resid_par,
+            projL_insert_none (rfl : (Tag.right y : Tag (semantics P) _).evL = none),
+            projR_insert (rfl : (Tag.right y).evR = some y), ← hyQ]
       | @parSync _ _ a _ _ _ hs1 hs2 =>
-        obtain ⟨x, hxen, hxfr, hxlbl, hxQ⟩ := op_to_den P _ _ _ hXfin hXconf hs1
-        obtain ⟨y, hyen, hyfr, hylbl, hyQ⟩ := op_to_den Q _ _ _ hYfin hYconf hs2
-        obtain ⟨q, hqen, hqfr, hqtop⟩ :=
-          exists_event_tag hfin hc (Tag.sync x y ⟨a, hxlbl, hylbl⟩)
-            (by tag_side ⟨hxen, hxfr⟩) (by tag_side ⟨hyen, hyfr⟩)
-        have hevL : q.top.evL = some x := by rw [hqtop]; rfl
-        have hevR : q.top.evR = some y := by rw [hqtop]; rfl
-        refine ⟨q, hqen, hqfr, ?_, ?_⟩
-        · change q.top.label = Action.tau
-          rw [hqtop]; rfl
-        · erw [resid_par, flat_insert_projL hqen.2.2 hevL,
-            flat_insert_projR hqen.2.2 hevR, ← hxQ, ← hyQ]
+        obtain ⟨x, hxins, hxfr, hxlbl, hxQ⟩ := op_to_den P _ _ _ (projL_isConf hc) hs1
+        obtain ⟨y, hyins, hyfr, hylbl, hyQ⟩ := op_to_den Q _ _ _ (projR_isConf hc) hs2
+        refine ⟨Tag.sync x y ⟨a, hxlbl, hylbl⟩, isConf_insert_tag hc ?_ ?_, ?_, rfl, ?_⟩
+        · rintro x' hx'
+          exact ⟨(Option.some.inj hx') ▸ hxins, (Option.some.inj hx') ▸ hxfr⟩
+        · rintro y' hy'
+          exact ⟨(Option.some.inj hy') ▸ hyins, (Option.some.inj hy') ▸ hyfr⟩
+        · exact fun hmem => hxfr ⟨_, hmem, rfl⟩
+        · rw [resid_par, projL_insert (rfl : (Tag.sync x y _).evL = some x),
+            projR_insert (rfl : (Tag.sync x y _).evR = some y), ← hxQ, ← hyQ]
 
 /-- Coincidence of the two semantics, via the residual process. -/
 theorem op_den_bisim (P : Process Name) : Bisimilar (opLTSI P) (denLTSI P) := by
-  refine ⟨fun Q c => c.1.Finite ∧ Q = resid P c.1, ⟨Set.finite_empty, (resid_empty P).symm⟩,
-    ?_, ?_⟩
-  · rintro Q c α Q' ⟨hfin, rfl⟩ hstep
-    obtain ⟨e, hen, hfr, hlbl, hQ⟩ := op_to_den P c.1 α Q' hfin c.2 hstep
-    exact ⟨⟨c.1 ∪ {e}, enables_extension (es := semantics P) hen⟩,
-      ⟨e, hen, hfr, hlbl, rfl⟩, hfin.union (Set.finite_singleton e), hQ⟩
-  · rintro Q c α c' ⟨hfin, rfl⟩ ⟨e, hen, hfr, hlbl, htgt⟩
-    refine ⟨resid P c'.1, ?_, ?_, rfl⟩
-    · rw [htgt, ← hlbl]
-      exact den_to_op P c.1 e hfin c.2 hen hfr
-    · rw [htgt]
-      exact hfin.union (Set.finite_singleton e)
+  refine ⟨fun Q c => Q = resid P c.1, (resid_empty P).symm, ?_, ?_⟩
+  · rintro Q c α Q' rfl hstep
+    obtain ⟨e, hins, hfr, hlbl, hQ⟩ := op_to_den P c.1 α Q' c.2 hstep
+    exact ⟨⟨c.1 ∪ {e}, hins⟩, ⟨e, ⟨c.2, hins⟩, hfr, hlbl, rfl⟩, hQ⟩
+  · rintro Q c α c' rfl ⟨e, hen, hfr, hlbl, htgt⟩
+    refine ⟨resid P c'.1, ?_, rfl⟩
+    rw [htgt, ← hlbl]
+    exact den_to_op P c.1 e c.2 hen.2 hfr
 
 end CCS

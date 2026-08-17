@@ -1,27 +1,22 @@
-import EventStructures.Prime.Basic
-import EventStructures.Prime.Configuration
+import EventStructures.General.Stable
+import EventStructures.Stable.Basic
 import EventStructures.CCS.Syntax
-import Mathlib.Logic.Relation
-import Mathlib.Data.Set.Finite.Lattice
-import Mathlib.Data.Set.Card
 
-/-! # Parallel composition of event structures
+/-! # Parallel composition
 
-The product of prime event structures is stable, not prime.
+Events are *tags*: an event of the left component, one of the right, or a
+label-matched synchronisation. A set of tags is consistent when each component
+event is consumed once and each projection is consistent in its component, and
+it enables a tag when each event the tag consumes is enabled in its component. -/
 
-An event is therefore a *prime state* — a set of tags carrying its own causal
-history, with a unique maximal tag and least among states containing it, and
-`Secured` to exclude deadlocked histories. Order is history inclusion; conflict
-is failure to merge. -/
-
-open PES Configuration
+open GES
 
 namespace CCS
 
 variable {Name : Type*}
 
 /-- A product event: an `E`-event, an `F`-event, or a label-matched synchronisation. -/
-inductive Tag (E F : PES (Action Name)) where
+inductive Tag (E F : SES (Action Name)) where
   | left : E.Event → Tag E F
   | right : F.Event → Tag E F
   | sync (e : E.Event) (f : F.Event)
@@ -29,7 +24,7 @@ inductive Tag (E F : PES (Action Name)) where
 
 namespace Tag
 
-variable {E F : PES (Action Name)}
+variable {E F : SES (Action Name)}
 
 /-- The `E`-event a tag consumes. -/
 def evL : Tag E F → Option E.Event
@@ -51,7 +46,7 @@ def label : Tag E F → Action Name
 
 end Tag
 
-variable {E F : PES (Action Name)}
+variable {E F : SES (Action Name)}
 
 /-- `E`-events consumed by a set of tags. -/
 def projL (C : Set (Tag E F)) : Set E.Event := {e | ∃ t ∈ C, t.evL = some e}
@@ -85,34 +80,6 @@ lemma projR_union (C D : Set (Tag E F)) : projR (C ∪ D) = projR C ∪ projR D 
     · exact ⟨t, Or.inl ht, he⟩
     · exact ⟨t, Or.inr ht, he⟩
 
-/-- Each component event consumed once; both projections configurations. -/
-def IsState (C : Set (Tag E F)) : Prop :=
-  (∀ t ∈ C, ∀ t' ∈ C, ∀ e, t.evL = some e → t'.evL = some e → t = t') ∧
-  (∀ t ∈ C, ∀ t' ∈ C, ∀ f, t.evR = some f → t'.evR = some f → t = t') ∧
-  isConf E (projL C) ∧ isConf F (projR C)
-
-lemma IsState.downL {C : Set (Tag E F)} (h : IsState C) {e e' : E.Event}
-    (he : e ∈ projL C) (hle : e' ≤ e) : e' ∈ projL C := h.2.2.1.2 he hle
-
-lemma IsState.downR {C : Set (Tag E F)} (h : IsState C) {f f' : F.Event}
-    (hf : f ∈ projR C) (hle : f' ≤ f) : f' ∈ projR C := h.2.2.2.2 hf hle
-
-/-- A subset of a state whose projections stay downward closed is a state. -/
-lemma isState_of_subset {C D : Set (Tag E F)} (hC : IsState C) (hsub : D ⊆ C)
-    (hL : ∀ {e e' : E.Event}, e ∈ projL D → e' ≤ e → e' ∈ projL D)
-    (hR : ∀ {f f' : F.Event}, f ∈ projR D → f' ≤ f → f' ∈ projR D) : IsState D :=
-  ⟨fun t ht t' ht' e h1 h2 => hC.1 t (hsub ht) t' (hsub ht') e h1 h2,
-   fun t ht t' ht' f h1 h2 => hC.2.1 t (hsub ht) t' (hsub ht') f h1 h2,
-   ⟨fun h1 h2 => hC.2.2.1.1 (projL_mono hsub h1) (projL_mono hsub h2), hL⟩,
-   ⟨fun h1 h2 => hC.2.2.2.1 (projR_mono hsub h1) (projR_mono hsub h2), hR⟩⟩
-
-/-- Reachable states: built one tag at a time. Downward closure alone admits
-deadlocks like `{sync e₁ f₁, sync e₂ f₂}` with `e₁ < e₂` and `f₂ < f₁`. -/
-inductive Secured : Set (Tag E F) → Prop
-  | empty : Secured ∅
-  | step {C : Set (Tag E F)} {t : Tag E F} :
-      Secured C → t ∉ C → IsState (insert t C) → Secured (insert t C)
-
 lemma projL_empty : projL (∅ : Set (Tag E F)) = ∅ := by ext e; simp [projL]
 
 lemma projR_empty : projR (∅ : Set (Tag E F)) = ∅ := by ext f; simp [projR]
@@ -128,597 +95,6 @@ lemma projR_singleton (t : Tag E F) : projR {t} = {f | t.evR = some f} := by
   constructor
   · rintro ⟨t', ht', he⟩; rw [Set.mem_singleton_iff] at ht'; exact ht' ▸ he
   · intro he; exact ⟨t, rfl, he⟩
-
-lemma isState_empty : IsState (∅ : Set (Tag E F)) := by
-  refine ⟨fun t ht => (Set.notMem_empty t ht).elim,
-          fun t ht => (Set.notMem_empty t ht).elim, ?_, ?_⟩
-  · rw [projL_empty]
-    exact ⟨fun h _ _ => (Set.notMem_empty _ h).elim, fun h _ => (Set.notMem_empty _ h).elim⟩
-  · rw [projR_empty]
-    exact ⟨fun h _ _ => (Set.notMem_empty _ h).elim, fun h _ => (Set.notMem_empty _ h).elim⟩
-
-/-- `insert t C \ {t} = C` for fresh `t`, without deciding membership. -/
-lemma insert_diff_self {C : Set (Tag E F)} {t : Tag E F} (h : t ∉ C) :
-    insert t C \ {t} = C := by
-  ext x
-  constructor
-  · rintro ⟨hx | hx, hne⟩
-    · exact absurd hx hne
-    · exact hx
-  · exact fun hx => ⟨Or.inr hx, fun he => h (he ▸ hx)⟩
-
-lemma Secured.isState {C : Set (Tag E F)} : Secured C → IsState C
-  | .empty => isState_empty
-  | .step _ _ h => h
-
-/-- A nonempty secured state has a removable tag: the last inserted. -/
-lemma Secured.exists_max {C : Set (Tag E F)} (h : Secured C) :
-    C.Nonempty → ∃ t ∈ C, IsState (C \ {t}) := by
-  induction h with
-  | empty => rintro ⟨x, hx⟩; exact absurd hx (Set.notMem_empty x)
-  | @step C t hC hnew _ _ =>
-    exact fun _ => ⟨t, Set.mem_insert _ _, by
-      rw [insert_diff_self hnew]; exact hC.isState⟩
-
-/-- Events of `E ∥ F`: a tag together with its causal history. -/
-structure ParEvent (E F : PES (Action Name)) where
-  /-- The causal history, including the event itself. -/
-  hist : Set (Tag E F)
-  /-- The event proper: the unique maximal tag of `hist`. -/
-  top : Tag E F
-  state : IsState hist
-  secured : Secured hist
-  top_mem : top ∈ hist
-  /-- The history is the *least* state containing the event. -/
-  hist_min : ∀ D ⊆ hist, IsState D → top ∈ D → D = hist
-
-namespace ParEvent
-
-variable {E F : PES (Action Name)}
-
-/-- Only the top is removable. -/
-lemma top_uniq (p : ParEvent E F) {t : Tag E F} (ht : t ∈ p.hist)
-    (hst : IsState (p.hist \ {t})) : t = p.top := by
-  by_contra hne
-  have htop : p.top ∈ p.hist \ {t} :=
-    ⟨p.top_mem, fun h => hne (Set.mem_singleton_iff.mp h).symm⟩
-  have := p.hist_min _ Set.sdiff_subset hst htop
-  exact (this ▸ ht).2 rfl
-
-lemma top_max (p : ParEvent E F) : IsState (p.hist \ {p.top}) := by
-  obtain ⟨u, hu, hst⟩ := p.secured.exists_max ⟨p.top, p.top_mem⟩
-  exact (p.top_uniq hu hst) ▸ hst
-
-lemma ext' {p q : ParEvent E F} (h : p.hist = q.hist) : p = q := by
-  have htop : p.top = q.top :=
-    q.top_uniq (h ▸ p.top_mem) (by rw [← h]; exact p.top_max)
-  cases p; cases q; cases h; cases htop; rfl
-
-/-- Unions of histories have downward closed left projection. -/
-lemma union_downL (p q : ParEvent E F) {e e' : E.Event}
-    (he : e ∈ projL (p.hist ∪ q.hist)) (hle : e' ≤ e) :
-    e' ∈ projL (p.hist ∪ q.hist) := by
-  rw [projL_union] at he ⊢
-  rcases he with h | h
-  · exact Or.inl (p.state.downL h hle)
-  · exact Or.inr (q.state.downL h hle)
-
-/-- Unions of histories have downward closed right projection. -/
-lemma union_downR (p q : ParEvent E F) {f f' : F.Event}
-    (hf : f ∈ projR (p.hist ∪ q.hist)) (hle : f' ≤ f) :
-    f' ∈ projR (p.hist ∪ q.hist) := by
-  rw [projR_union] at hf ⊢
-  rcases hf with h | h
-  · exact Or.inl (p.state.downR h hle)
-  · exact Or.inr (q.state.downR h hle)
-
-lemma hist_nonempty (p : ParEvent E F) : p.hist.Nonempty := ⟨p.top, p.top_mem⟩
-
-end ParEvent
-
-/-- A tag with minimal components is a state on its own. -/
-lemma isState_singleton (t : Tag E F)
-    (hL : ∀ {e e' : E.Event}, t.evL = some e → e' ≤ e → e' = e)
-    (hR : ∀ {f f' : F.Event}, t.evR = some f → f' ≤ f → f' = f) :
-    IsState ({t} : Set (Tag E F)) := by
-  refine ⟨?_, ?_, ?_, ?_⟩
-  · intro a ha b hb _ _ _
-    rw [Set.mem_singleton_iff] at ha hb; rw [ha, hb]
-  · intro a ha b hb _ _ _
-    rw [Set.mem_singleton_iff] at ha hb; rw [ha, hb]
-  · rw [projL_singleton]
-    refine ⟨?_, ?_⟩
-    · intro e₁ e₂ h1 h2
-      simp only [Set.mem_ofPred_eq] at h1 h2
-      rw [h1] at h2
-      exact Option.some.inj h2 ▸ E.conflict_irrefl _
-    · intro e e' he hle
-      simp only [Set.mem_ofPred_eq] at he ⊢
-      exact hL he hle ▸ he
-  · rw [projR_singleton]
-    refine ⟨?_, ?_⟩
-    · intro f₁ f₂ h1 h2
-      simp only [Set.mem_ofPred_eq] at h1 h2
-      rw [h1] at h2
-      exact Option.some.inj h2 ▸ F.conflict_irrefl _
-    · intro f f' hf hle
-      simp only [Set.mem_ofPred_eq] at hf ⊢
-      exact hR hf hle ▸ hf
-
-lemma secured_singleton {t : Tag E F} (h : IsState ({t} : Set (Tag E F))) :
-    Secured ({t} : Set (Tag E F)) := by
-  have hins : ({t} : Set (Tag E F)) = insert t ∅ := by simp
-  rw [hins]
-  exact Secured.step Secured.empty (Set.notMem_empty t) (hins ▸ h)
-
-/-- A tag with minimal components is a prime state on its own. -/
-def minTagEvent (t : Tag E F)
-    (hL : ∀ {e e' : E.Event}, t.evL = some e → e' ≤ e → e' = e)
-    (hR : ∀ {f f' : F.Event}, t.evR = some f → f' ≤ f → f' = f) : ParEvent E F where
-  hist := {t}
-  top := t
-  state := isState_singleton t hL hR
-  secured := secured_singleton (isState_singleton t hL hR)
-  top_mem := rfl
-  hist_min := fun _ hD _ ht => Set.Subset.antisymm hD (Set.singleton_subset_iff.mpr ht)
-
-/-- Parallel composition: events are prime states, ordered by history inclusion,
-in conflict when their histories cannot be merged. -/
-def par (E F : PES (Action Name)) : PES (Action Name) where
-  Event := ParEvent E F
-  poEvent :=
-    { le := fun p q => p.hist ⊆ q.hist
-      lt := fun p q => p.hist ⊆ q.hist ∧ ¬ q.hist ⊆ p.hist
-      le_refl := fun _ => Set.Subset.refl _
-      le_trans := fun _ _ _ h h' => Set.Subset.trans h h'
-      le_antisymm := fun _ _ h h' => ParEvent.ext' (Set.Subset.antisymm h h')
-      lt_iff_le_not_ge := fun _ _ => Iff.rfl }
-  conflict := fun p q => ¬ IsState (p.hist ∪ q.hist)
-  label := fun p => p.top.label
-  conflict_irrefl := fun p h => h (by rw [Set.union_self]; exact p.state)
-  conflict_symm := ⟨fun _ _ h hst => h (by rw [Set.union_comm]; exact hst)⟩
-  conflict_hereditary := fun {p q r} hpq hqr hpr =>
-    hpq (isState_of_subset hpr (Set.union_subset_union_right _ hqr)
-          (ParEvent.union_downL p q) (ParEvent.union_downR p q))
-
-/-- A singleton history is minimal, hence enabled at the empty configuration. -/
-lemma enables_minTagEvent (t : Tag E F)
-    (hL : ∀ {e e' : E.Event}, t.evL = some e → e' ≤ e → e' = e)
-    (hR : ∀ {f f' : F.Event}, t.evR = some f → f' ≤ f → f' = f) :
-    Configuration.enables (par E F) ∅ (minTagEvent t hL hR) := by
-  refine ⟨⟨fun h _ _ => (Set.notMem_empty _ h).elim,
-           fun h _ => (Set.notMem_empty _ h).elim⟩,
-          fun _ h => (Set.notMem_empty _ h).elim, ?_⟩
-  rintro q ⟨hsub, hnsub⟩
-  refine absurd (fun x hx => ?_) hnsub
-  have hx' : x = t := hx
-  have htop : q.top = t := hsub q.top_mem
-  rw [hx']
-  exact htop ▸ q.top_mem
-
-
-
-/-! ## Causal histories
-
-Every tag of a secured state is the top of a unique least substate —
-its causal history. -/
-
-/-- One-step causal dependency: two tags sharing a component, ordered. -/
-def TagLe (t' t : Tag E F) : Prop :=
-  (∃ x' x, t'.evL = some x' ∧ t.evL = some x ∧ x' ≤ x) ∨
-  (∃ f' f, t'.evR = some f' ∧ t.evR = some f ∧ f' ≤ f)
-
-/-- Causal dependency chains inside a set of tags. -/
-def Dep (S : Set (Tag E F)) : Tag E F → Tag E F → Prop :=
-  Relation.ReflTransGen (fun a b => a ∈ S ∧ b ∈ S ∧ TagLe a b)
-
-/-- The causal history of `t` inside `S`. -/
-def dc (S : Set (Tag E F)) (t : Tag E F) : Set (Tag E F) := {t' | t' ∈ S ∧ Dep S t' t}
-
-lemma dc_subset {S : Set (Tag E F)} {t : Tag E F} : dc S t ⊆ S := fun _ h => h.1
-
-lemma dc_self {S : Set (Tag E F)} {t : Tag E F} (ht : t ∈ S) : t ∈ dc S t :=
-  ⟨ht, Relation.ReflTransGen.refl⟩
-
-/-- Any state inside `S` containing `t` already contains the whole history of `t`. -/
-lemma dc_least {S D : Set (Tag E F)} {t : Tag E F} (hS : IsState S) (hD : IsState D)
-    (hDS : D ⊆ S) (ht : t ∈ D) : dc S t ⊆ D := by
-  rintro t' ⟨-, hdep⟩
-  induction hdep using Relation.ReflTransGen.head_induction_on with
-  | refl => exact ht
-  | head hstep _ ih =>
-    obtain ⟨haS, -, hle⟩ := hstep
-    rcases hle with ⟨x', x, hx', hx, hxle⟩ | ⟨f', f, hf', hf, hfle⟩
-    · obtain ⟨w, hwD, hw⟩ := hD.downL (⟨_, ih, hx⟩ : x ∈ projL D) hxle
-      exact hS.1 w (hDS hwD) _ haS x' hw hx' ▸ hwD
-    · obtain ⟨w, hwD, hw⟩ := hD.downR (⟨_, ih, hf⟩ : f ∈ projR D) hfle
-      exact hS.2.1 w (hDS hwD) _ haS f' hw hf' ▸ hwD
-
-lemma isState_dc {S : Set (Tag E F)} (hS : IsState S) (t : Tag E F) : IsState (dc S t) := by
-  refine isState_of_subset hS dc_subset ?_ ?_
-  · rintro x x' ⟨w, ⟨hwS, hwdep⟩, hw⟩ hle
-    obtain ⟨v, hvS, hv⟩ := hS.downL (⟨w, hwS, hw⟩ : x ∈ projL S) hle
-    exact ⟨v, ⟨hvS, .head ⟨hvS, hwS, Or.inl ⟨x', x, hv, hw, hle⟩⟩ hwdep⟩, hv⟩
-  · rintro f f' ⟨w, ⟨hwS, hwdep⟩, hw⟩ hle
-    obtain ⟨v, hvS, hv⟩ := hS.downR (⟨w, hwS, hw⟩ : f ∈ projR S) hle
-    exact ⟨v, ⟨hvS, .head ⟨hvS, hwS, Or.inr ⟨f', f, hv, hw, hle⟩⟩ hwdep⟩, hv⟩
-
-/-- A freshly inserted tag depends on nothing already present. -/
-lemma not_TagLe_fresh {C : Set (Tag E F)} {u v : Tag E F}
-    (hins : IsState (insert u C)) (hC : IsState C) (hu : u ∉ C) (hv : v ∈ C) :
-    ¬ TagLe u v := by
-  rintro (⟨x, x', hx, hx', hle⟩ | ⟨f, f', hf, hf', hle⟩)
-  · obtain ⟨w, hwC, hw⟩ := hC.downL (⟨v, hv, hx'⟩ : x' ∈ projL C) hle
-    exact hu ((hins.1 u (Set.mem_insert _ _) w (Set.mem_insert_of_mem _ hwC) x hx hw) ▸ hwC)
-  · obtain ⟨w, hwC, hw⟩ := hC.downR (⟨v, hv, hf'⟩ : f' ∈ projR C) hle
-    exact hu ((hins.2.1 u (Set.mem_insert _ _) w (Set.mem_insert_of_mem _ hwC) f hf hw) ▸ hwC)
-
-/-- Substates closed under causal predecessors inherit securedness. -/
-lemma secured_of_closed {S : Set (Tag E F)} (hS : Secured S) :
-    ∀ {D : Set (Tag E F)}, D ⊆ S → IsState D →
-      (∀ a ∈ D, ∀ b ∈ S, TagLe b a → b ∈ D) → Secured D := by
-  induction hS with
-  | empty =>
-    intro D hDS _ _
-    exact (Set.subset_empty_iff.mp hDS) ▸ Secured.empty
-  | @step C u hC huC hins ih =>
-    intro D hDS hD hclosed
-    by_cases huD : u ∈ D
-    · have hsub : D \ {u} ⊆ C := by
-        rintro v ⟨hvD, hvu⟩
-        rcases hDS hvD with rfl | hvC
-        · exact absurd rfl hvu
-        · exact hvC
-      have hDu : IsState (D \ {u}) := by
-        refine isState_of_subset hD Set.sdiff_subset ?_ ?_
-        · rintro x x' ⟨w, ⟨hwD, hwu⟩, hw⟩ hle
-          obtain ⟨v, hvD, hv⟩ := hD.downL (⟨w, hwD, hw⟩ : x ∈ projL D) hle
-          refine ⟨v, ⟨hvD, ?_⟩, hv⟩
-          rintro rfl
-          exact not_TagLe_fresh hins hC.isState huC (hsub ⟨hwD, hwu⟩)
-            (Or.inl ⟨x', x, hv, hw, hle⟩)
-        · rintro f f' ⟨w, ⟨hwD, hwu⟩, hw⟩ hle
-          obtain ⟨v, hvD, hv⟩ := hD.downR (⟨w, hwD, hw⟩ : f ∈ projR D) hle
-          refine ⟨v, ⟨hvD, ?_⟩, hv⟩
-          rintro rfl
-          exact not_TagLe_fresh hins hC.isState huC (hsub ⟨hwD, hwu⟩)
-            (Or.inr ⟨f', f, hv, hw, hle⟩)
-      have hsec : Secured (D \ {u}) :=
-        ih hsub hDu (fun a ha b hb hlt =>
-          ⟨hclosed a ha.1 b (Set.mem_insert_of_mem _ hb) hlt, fun hbu =>
-            huC ((Set.mem_singleton_iff.mp hbu) ▸ hb)⟩)
-      have heq : insert u (D \ {u}) = D := by
-        rw [Set.insert_sdiff_singleton, Set.insert_eq_self.mpr huD]
-      have hD' : IsState (insert u (D \ {u})) := by rw [heq]; exact hD
-      rw [← heq]
-      exact Secured.step hsec (fun h => h.2 rfl) hD'
-    · refine ih (fun v hv => ?_) hD
-        (fun a ha b hb hlt => hclosed a ha b (Set.mem_insert_of_mem _ hb) hlt)
-      rcases hDS hv with rfl | h
-      · exact absurd hv huD
-      · exact h
-
-lemma secured_dc {S : Set (Tag E F)} (hS : Secured S) (t : Tag E F) : Secured (dc S t) :=
-  secured_of_closed hS dc_subset (isState_dc hS.isState t)
-    (fun _ ha _ hb hlt => ⟨hb, .head ⟨hb, ha.1, hlt⟩ ha.2⟩)
-
-/-- Only `t` itself can be removed from its own history. -/
-lemma dc_top_uniq {S : Set (Tag E F)} (hS : IsState S) {t : Tag E F} (ht : t ∈ S)
-    {u : Tag E F} (hu : u ∈ dc S t) (hst : IsState (dc S t \ {u})) : u = t := by
-  by_contra hne
-  have htmem : t ∈ dc S t \ {u} :=
-    ⟨dc_self ht, fun h => hne (Set.mem_singleton_iff.mp h).symm⟩
-  exact (dc_least hS hst (fun v hv => dc_subset hv.1) htmem hu).2 rfl
-
-/-- The prime event with top `t` inside a secured state. -/
-def primeOf {S : Set (Tag E F)} (hS : Secured S) {t : Tag E F} (ht : t ∈ S) : ParEvent E F where
-  hist := dc S t
-  top := t
-  state := isState_dc hS.isState t
-  secured := secured_dc hS t
-  top_mem := dc_self ht
-  hist_min := fun _ hD hDst htD =>
-    Set.Subset.antisymm hD
-      (dc_least hS.isState hDst (fun _ hv => dc_subset (hD hv)) htD)
-
-/-- Every non-top tag of a prime history is the top of a strictly smaller event. -/
-lemma sub_event (q : ParEvent E F) {t : Tag E F} (ht : t ∈ q.hist) (hne : t ≠ q.top) :
-    ∃ r : ParEvent E F, r.hist ⊆ q.hist ∧ r.hist ≠ q.hist ∧ r.top = t := by
-  refine ⟨primeOf q.secured ht, dc_subset, ?_, rfl⟩
-  intro heq
-  exact hne (q.top_uniq ht (heq ▸ (primeOf q.secured ht).top_max))
-
-/-! ## Configurations of `E ∥ F` -/
-
-/-- The tags used by a set of events. -/
-def flat (c : Set (ParEvent E F)) : Set (Tag E F) := {t | ∃ q ∈ c, t ∈ q.hist}
-
-lemma mem_flat {c : Set (ParEvent E F)} {q : ParEvent E F} (hq : q ∈ c)
-    {t : Tag E F} (ht : t ∈ q.hist) : t ∈ flat c := ⟨q, hq, ht⟩
-
-lemma projL_flat {c : Set (ParEvent E F)} {x : E.Event} :
-    x ∈ projL (flat c) ↔ ∃ q ∈ c, x ∈ projL q.hist := by
-  constructor
-  · rintro ⟨t, ⟨q, hq, ht⟩, hx⟩; exact ⟨q, hq, t, ht, hx⟩
-  · rintro ⟨q, hq, t, ht, hx⟩; exact ⟨t, ⟨q, hq, ht⟩, hx⟩
-
-lemma projR_flat {c : Set (ParEvent E F)} {y : F.Event} :
-    y ∈ projR (flat c) ↔ ∃ q ∈ c, y ∈ projR q.hist := by
-  constructor
-  · rintro ⟨t, ⟨q, hq, ht⟩, hy⟩; exact ⟨q, hq, t, ht, hy⟩
-  · rintro ⟨q, hq, t, ht, hy⟩; exact ⟨t, ⟨q, hq, ht⟩, hy⟩
-
-/-- Compatible events merge: this is what conflict-freeness gives. -/
-lemma isState_pair {p q : ParEvent E F} (h : ¬ (par E F).conflict p q) :
-    IsState (p.hist ∪ q.hist) := not_not.mp h
-
-/-- The tags of a configuration form a state. -/
-lemma isState_flat {c : Set (ParEvent E F)} (hc : isConf (par E F) c) :
-    IsState (flat c) := by
-  refine ⟨?_, ?_, ⟨?_, ?_⟩, ⟨?_, ?_⟩⟩
-  · rintro t ⟨q, hq, ht⟩ t' ⟨q', hq', ht'⟩ x hx hx'
-    exact (isState_pair (hc.1 hq hq')).1 t (Or.inl ht) t' (Or.inr ht') x hx hx'
-  · rintro t ⟨q, hq, ht⟩ t' ⟨q', hq', ht'⟩ y hy hy'
-    exact (isState_pair (hc.1 hq hq')).2.1 t (Or.inl ht) t' (Or.inr ht') y hy hy'
-  · rintro x x' hx hx'
-    obtain ⟨q, hq, hxq⟩ := projL_flat.mp hx
-    obtain ⟨q', hq', hxq'⟩ := projL_flat.mp hx'
-    refine (isState_pair (hc.1 hq hq')).2.2.1.1 ?_ ?_ <;> rw [projL_union]
-    · exact Or.inl hxq
-    · exact Or.inr hxq'
-  · rintro x x' hx hle
-    obtain ⟨q, hq, hxq⟩ := projL_flat.mp hx
-    exact projL_flat.mpr ⟨q, hq, q.state.downL hxq hle⟩
-  · rintro y y' hy hy'
-    obtain ⟨q, hq, hyq⟩ := projR_flat.mp hy
-    obtain ⟨q', hq', hyq'⟩ := projR_flat.mp hy'
-    refine (isState_pair (hc.1 hq hq')).2.2.2.1 ?_ ?_ <;> rw [projR_union]
-    · exact Or.inl hyq
-    · exact Or.inr hyq'
-  · rintro y y' hy hle
-    obtain ⟨q, hq, hyq⟩ := projR_flat.mp hy
-    exact projR_flat.mpr ⟨q, hq, q.state.downR hyq hle⟩
-
-/-- The past of an event covers all of its history but the top. -/
-lemma hist_sub_flat {c : Set (ParEvent E F)} {q : ParEvent E F}
-    (hpast : (par E F).past q ⊆ c) : q.hist \ {q.top} ⊆ flat c := by
-  rintro t ⟨ht, hne⟩
-  obtain ⟨r, hsub, hne', hrtop⟩ :=
-    sub_event q ht (fun h => hne (Set.mem_singleton_iff.mpr h))
-  refine mem_flat (hpast (?_ : r ∈ (par E F).past q)) (hrtop ▸ r.top_mem)
-  exact ⟨hsub, fun h => hne' (Set.Subset.antisymm hsub h)⟩
-
-/-- Adding an event adds exactly its top tag. -/
-lemma flat_insert {c : Set (ParEvent E F)} {q : ParEvent E F}
-    (hpast : (par E F).past q ⊆ c) : flat (c ∪ {q}) = insert q.top (flat c) := by
-  ext t
-  constructor
-  · rintro ⟨r, hr | hr, ht⟩
-    · exact Set.mem_insert_of_mem _ ⟨r, hr, ht⟩
-    · rw [Set.mem_singleton_iff] at hr
-      subst hr
-      by_cases htt : t = r.top
-      · exact htt ▸ Set.mem_insert _ _
-      · exact Set.mem_insert_of_mem _ (hist_sub_flat hpast ⟨ht, htt⟩)
-  · rintro (rfl | ⟨r, hr, ht⟩)
-    · exact ⟨q, Or.inr rfl, q.top_mem⟩
-    · exact ⟨r, Or.inl hr, ht⟩
-
-
-/-- Secured states are listable: the securing sequence, positively. -/
-lemma Secured.listable {C : Set (Tag E F)} (h : Secured C) :
-    ∃ l : List (Tag E F), ∀ x, x ∈ C ↔ x ∈ l := by
-  induction h with
-  | empty =>
-    refine ⟨[], fun x => ⟨fun hx => absurd hx (Set.notMem_empty x), fun hx => ?_⟩⟩
-    exact absurd hx (List.not_mem_nil)
-  | @step C t _ _ _ ih =>
-    obtain ⟨l, hl⟩ := ih
-    refine ⟨t :: l, fun x => ⟨?_, ?_⟩⟩
-    · rintro (rfl | hx)
-      · exact List.mem_cons_self ..
-      · exact List.mem_cons_of_mem _ ((hl x).mp hx)
-    · intro hx
-      rcases List.mem_cons.mp hx with rfl | hx
-      · exact Set.mem_insert _ _
-      · exact Set.mem_insert_of_mem _ ((hl x).mpr hx)
-
-lemma Secured.finite {C : Set (Tag E F)} (h : Secured C) : C.Finite := by
-  induction h with
-  | empty => exact Set.finite_empty
-  | step _ _ _ ih => exact ih.insert _
-
-lemma flat_finite {c : Set (ParEvent E F)} (hfin : c.Finite) : (flat c).Finite := by
-  have h : flat c = ⋃ q ∈ c, q.hist := by ext t; simp [flat]
-  rw [h]
-  exact hfin.biUnion (fun q _ => q.secured.finite)
-
-lemma past_subset {c : Set (ParEvent E F)} (hc : isConf (par E F) c) {q : ParEvent E F}
-    (hq : q ∈ c) : (par E F).past q ⊆ c \ {q} := by
-  intro r hr
-  refine ⟨hc.2 hq (le_of_lt hr), ?_⟩
-  rintro hrq
-  replace hrq : r = q := hrq
-  subst hrq
-  exact absurd hr (lt_irrefl (α := (par E F).Event) r)
-
-/-- The tags of a finite configuration form a secured state. -/
-lemma secured_flat_aux : ∀ (n : ℕ) (c : Set (ParEvent E F)), c.Finite → c.ncard = n →
-    isConf (par E F) c → Secured (flat c) := by
-  intro n
-  induction n using Nat.strong_induction_on with
-  | _ n ih =>
-    intro c hfin hcard hc
-    rcases Set.eq_empty_or_nonempty c with rfl | hne
-    · have h : flat (∅ : Set (ParEvent E F)) = ∅ := by ext t; simp [flat]
-      exact h ▸ Secured.empty
-    obtain ⟨q, hqc, hmax⟩ := hfin.exists_maximalFor ParEvent.hist c hne
-    have hsub : c \ {q} ⊆ c := Set.sdiff_subset
-    have hpast : (par E F).past q ⊆ c \ {q} := past_subset hc hqc
-    have hss : c \ {q} ⊂ c := Set.sdiff_singleton_ssubset.mpr hqc
-    have hc'conf : isConf (par E F) (c \ {q}) := by
-      refine ⟨fun h1 h2 => hc.1 (hsub h1) (hsub h2), ?_⟩
-      intro r s hr hle
-      refine ⟨hc.2 hr.1 hle, ?_⟩
-      rintro hsq
-      replace hsq : s = q := hsq
-      subst hsq
-      exact hr.2 (Set.mem_singleton_iff.mpr
-        (ParEvent.ext' (Set.Subset.antisymm hle (hmax hr.1 hle))).symm)
-    have hflat : flat c = insert q.top (flat (c \ {q})) := by
-      ext t
-      constructor
-      · rintro ⟨r, hr, ht⟩
-        by_cases hrq : r = q
-        · subst hrq
-          by_cases htt : t = r.top
-          · exact htt ▸ Set.mem_insert _ _
-          · exact Set.mem_insert_of_mem _ (hist_sub_flat hpast ⟨ht, htt⟩)
-        · exact Set.mem_insert_of_mem _
-            ⟨r, ⟨hr, fun h => hrq (Set.mem_singleton_iff.mp h)⟩, ht⟩
-      · rintro (rfl | ⟨r, hr, ht⟩)
-        · exact ⟨q, hqc, q.top_mem⟩
-        · exact ⟨r, hsub hr, ht⟩
-    have htopfresh : q.top ∉ flat (c \ {q}) := by
-      rintro ⟨r, ⟨hrc, hrq⟩, htop⟩
-      have hM : IsState (q.hist ∪ r.hist) := isState_pair (hc.1 hqc hrc)
-      have hle : q.hist ⊆ r.hist := by
-        have h2 : dc (q.hist ∪ r.hist) q.top ⊆ r.hist :=
-          dc_least hM r.state Set.subset_union_right htop
-        have heq : dc (q.hist ∪ r.hist) q.top = q.hist :=
-          q.hist_min _ (dc_least hM q.state Set.subset_union_left q.top_mem)
-            (isState_dc hM _) (dc_self (Or.inl q.top_mem))
-        exact heq ▸ h2
-      exact hrq (Set.mem_singleton_iff.mpr
-        (ParEvent.ext' (Set.Subset.antisymm hle (hmax hrc hle))).symm)
-    rw [hflat]
-    refine Secured.step (ih (c \ {q}).ncard ?_ (c \ {q}) (hfin.subset hsub) rfl hc'conf)
-      htopfresh (hflat ▸ isState_flat hc)
-    exact hcard ▸ Set.ncard_lt_ncard hss hfin
-
-lemma secured_flat {c : Set (ParEvent E F)} (hfin : c.Finite) (hc : isConf (par E F) c) :
-    Secured (flat c) := secured_flat_aux _ c hfin rfl hc
-
-/-- A component of an enabled event is enabled on the projected configuration. -/
-lemma comp_enables_L {c : Set (ParEvent E F)} {q : ParEvent E F} {x : E.Event}
-    (hc : isConf (par E F) c) (hen : Configuration.enables (par E F) c q) (hfr : q ∉ c)
-    (hx : q.top.evL = some x) :
-    Configuration.enables E (projL (flat c)) x ∧ x ∉ projL (flat c) := by
-  have hxq : x ∈ projL q.hist := ⟨q.top, q.top_mem, hx⟩
-  have hcompat : ∀ q' ∈ c, IsState (q.hist ∪ q'.hist) :=
-    fun q' hq' => isState_pair (hen.2.1 q' hq')
-  refine ⟨⟨(isState_flat hc).2.2.1, ?_, ?_⟩, ?_⟩
-  · rintro x' hx'
-    obtain ⟨q', hq', hx'q⟩ := projL_flat.mp hx'
-    refine (hcompat q' hq').2.2.1.1 ?_ ?_ <;> rw [projL_union]
-    · exact Or.inl hxq
-    · exact Or.inr hx'q
-  · rintro x' hlt
-    obtain ⟨t', ht', hx'⟩ := q.state.downL hxq (le_of_lt hlt)
-    have hne : t' ≠ q.top := by
-      rintro rfl
-      rw [hx] at hx'
-      exact absurd (Option.some.inj hx').symm (ne_of_lt hlt)
-    exact ⟨t', hist_sub_flat hen.2.2 ⟨ht', fun h => hne (Set.mem_singleton_iff.mp h)⟩, hx'⟩
-  · rintro hxflat
-    obtain ⟨q', hq', t', ht', hxt'⟩ := projL_flat.mp hxflat
-    have hM := hcompat q' hq'
-    have htop : q.top = t' :=
-      hM.1 q.top (Or.inl q.top_mem) t' (Or.inr ht') x hx hxt'
-    have hdcq : dc (q.hist ∪ q'.hist) q.top ⊆ q.hist :=
-      dc_least hM q.state Set.subset_union_left q.top_mem
-    have hdcq' : dc (q.hist ∪ q'.hist) q.top ⊆ q'.hist :=
-      dc_least hM q'.state Set.subset_union_right (htop ▸ ht')
-    have heq : dc (q.hist ∪ q'.hist) q.top = q.hist :=
-      q.hist_min _ hdcq (isState_dc hM _) (dc_self (Or.inl q.top_mem))
-    have hle : q.hist ⊆ q'.hist := heq ▸ hdcq'
-    exact hfr (hc.2 hq' hle)
-
-
-lemma comp_enables_R {c : Set (ParEvent E F)} {q : ParEvent E F} {y : F.Event}
-    (hc : isConf (par E F) c) (hen : Configuration.enables (par E F) c q) (hfr : q ∉ c)
-    (hy : q.top.evR = some y) :
-    Configuration.enables F (projR (flat c)) y ∧ y ∉ projR (flat c) := by
-  have hyq : y ∈ projR q.hist := ⟨q.top, q.top_mem, hy⟩
-  have hcompat : ∀ q' ∈ c, IsState (q.hist ∪ q'.hist) :=
-    fun q' hq' => isState_pair (hen.2.1 q' hq')
-  refine ⟨⟨(isState_flat hc).2.2.2, ?_, ?_⟩, ?_⟩
-  · rintro y' hy'
-    obtain ⟨q', hq', hy'q⟩ := projR_flat.mp hy'
-    refine (hcompat q' hq').2.2.2.1 ?_ ?_ <;> rw [projR_union]
-    · exact Or.inl hyq
-    · exact Or.inr hy'q
-  · rintro y' hlt
-    obtain ⟨t', ht', hy'⟩ := q.state.downR hyq (le_of_lt hlt)
-    have hne : t' ≠ q.top := by
-      rintro rfl
-      rw [hy] at hy'
-      exact absurd (Option.some.inj hy').symm (ne_of_lt hlt)
-    exact ⟨t', hist_sub_flat hen.2.2 ⟨ht', fun h => hne (Set.mem_singleton_iff.mp h)⟩, hy'⟩
-  · rintro hyflat
-    obtain ⟨q', hq', t', ht', hyt'⟩ := projR_flat.mp hyflat
-    have hM := hcompat q' hq'
-    have htop : q.top = t' :=
-      hM.2.1 q.top (Or.inl q.top_mem) t' (Or.inr ht') y hy hyt'
-    have hdcq : dc (q.hist ∪ q'.hist) q.top ⊆ q.hist :=
-      dc_least hM q.state Set.subset_union_left q.top_mem
-    have hdcq' : dc (q.hist ∪ q'.hist) q.top ⊆ q'.hist :=
-      dc_least hM q'.state Set.subset_union_right (htop ▸ ht')
-    have heq : dc (q.hist ∪ q'.hist) q.top = q.hist :=
-      q.hist_min _ hdcq (isState_dc hM _) (dc_self (Or.inl q.top_mem))
-    have hle : q.hist ⊆ q'.hist := heq ▸ hdcq'
-    exact hfr (hc.2 hq' hle)
-
-/-- Events below one built inside `insert t (flat c)` already live in `c`. -/
-lemma past_of_primeOf {c : Set (ParEvent E F)} (hc : isConf (par E F) c)
-    {t : Tag E F} {hS : Secured (insert t (flat c))}
-    (q : ParEvent E F) (hq : q = primeOf hS (Set.mem_insert t (flat c))) :
-    (par E F).past q ⊆ c := by
-  rintro r hr
-  have hrsub : r.hist ⊆ q.hist := hr.1
-  have hrS : r.hist ⊆ insert t (flat c) := hrsub.trans (hq ▸ dc_subset)
-  have hrdc : r.hist = dc (insert t (flat c)) r.top :=
-    (r.hist_min _ (dc_least hS.isState r.state hrS r.top_mem)
-      (isState_dc hS.isState _) (dc_self (hrS r.top_mem))).symm
-  have hrtop : r.top ≠ t := by
-    rintro rfl
-    refine hr.2 ?_
-    rw [hq]
-    exact dc_least hS.isState r.state hrS r.top_mem
-  obtain ⟨q'', hq'', ht''⟩ : ∃ q'' ∈ c, r.top ∈ q''.hist := by
-    rcases hrS r.top_mem with h | h
-    · exact absurd h hrtop
-    · exact h
-  have hle : r.hist ⊆ q''.hist := by
-    rw [hrdc]
-    exact (dc_least hS.isState (isState_dc q''.state r.top)
-      ((dc_subset (S := q''.hist)).trans (fun v hv => Set.mem_insert_of_mem _ ⟨q'', hq'', hv⟩))
-      (dc_self ht'')).trans dc_subset
-  exact hc.2 hq'' hle
-
-
-@[simp] lemma setOf_evL_left (x : E.Event) :
-    {e | (Tag.left (F := F) x).evL = some e} = {x} := by ext e; simp [Tag.evL, eq_comm]
-@[simp] lemma setOf_evR_left (x : E.Event) :
-    {f | (Tag.left (F := F) x).evR = some f} = (∅ : Set F.Event) := by ext f; simp [Tag.evR]
-@[simp] lemma setOf_evL_right (y : F.Event) :
-    {e | (Tag.right (E := E) y).evL = some e} = (∅ : Set E.Event) := by ext e; simp [Tag.evL]
-@[simp] lemma setOf_evR_right (y : F.Event) :
-    {f | (Tag.right (E := E) y).evR = some f} = {y} := by ext f; simp [Tag.evR, eq_comm]
-@[simp] lemma setOf_evL_sync (x : E.Event) (y : F.Event)
-    (h : ∃ a, E.label x = .vis a ∧ F.label y = .vis a.co) :
-    {e | (Tag.sync x y h).evL = some e} = {x} := by ext e; simp [Tag.evL, eq_comm]
-@[simp] lemma setOf_evR_sync (x : E.Event) (y : F.Event)
-    (h : ∃ a, E.label x = .vis a ∧ F.label y = .vis a.co) :
-    {f | (Tag.sync x y h).evR = some f} = {y} := by ext f; simp [Tag.evR, eq_comm]
-
-lemma projL_insert (t : Tag E F) (C : Set (Tag E F)) :
-    projL (insert t C) = {e | t.evL = some e} ∪ projL C := by
-  rw [Set.insert_eq, projL_union, projL_singleton]
-
-lemma projR_insert (t : Tag E F) (C : Set (Tag E F)) :
-    projR (insert t C) = {f | t.evR = some f} ∪ projR C := by
-  rw [Set.insert_eq, projR_union, projR_singleton]
 
 lemma projL_finite {C : Set (Tag E F)} (h : C.Finite) : (projL C).Finite := by
   have : projL C = ⋃ t ∈ C, {e | t.evL = some e} := by ext e; simp [projL]
@@ -742,120 +118,415 @@ lemma projR_finite {C : Set (Tag E F)} (h : C.Finite) : (projR C).Finite := by
     simp only [Set.mem_ofPred_eq, Option.some.injEq] at hf
     simp [hf]
 
-/-- A tag with enabled components yields an enabled event. -/
-lemma exists_event_tag {c : Set (ParEvent E F)} (hfin : c.Finite) (hc : isConf (par E F) c)
-    (t : Tag E F)
-    (hL : ∀ x, t.evL = some x →
-      Configuration.enables E (projL (flat c)) x ∧ x ∉ projL (flat c))
-    (hR : ∀ y, t.evR = some y →
-      Configuration.enables F (projR (flat c)) y ∧ y ∉ projR (flat c)) :
-    ∃ q : ParEvent E F, Configuration.enables (par E F) c q ∧ q ∉ c ∧ q.top = t := by
-  have hst : IsState (insert t (flat c)) := by
-    refine ⟨?_, ?_, ?_, ?_⟩
-    · rintro a (rfl | ha) b (rfl | hb) e he he'
-      · rfl
-      · exact absurd (⟨b, hb, he'⟩ : e ∈ projL (flat c)) (hL e he).2
-      · exact absurd (⟨a, ha, he⟩ : e ∈ projL (flat c)) (hL e he').2
-      · exact (isState_flat hc).1 a ha b hb e he he'
-    · rintro a (rfl | ha) b (rfl | hb) f hf hf'
-      · rfl
-      · exact absurd (⟨b, hb, hf'⟩ : f ∈ projR (flat c)) (hR f hf).2
-      · exact absurd (⟨a, ha, hf⟩ : f ∈ projR (flat c)) (hR f hf').2
-      · exact (isState_flat hc).2.1 a ha b hb f hf hf'
-    · rw [projL_insert]
-      refine ⟨?_, ?_⟩
-      · rintro e₁ e₂ (h1 | h1) (h2 | h2)
-        · rw [h1] at h2
-          exact (Option.some.inj h2) ▸ E.conflict_irrefl _
-        · exact (hL e₁ h1).1.2.1 _ h2
-        · exact fun hcf => (hL e₂ h2).1.2.1 _ h1 (E.conflict_symm.symm _ _ hcf)
-        · exact (isState_flat hc).2.2.1.1 h1 h2
-      · rintro e e' (h | h) hle
-        · rcases lt_or_eq_of_le hle with hlt | rfl
-          · exact Or.inr ((hL e h).1.2.2 hlt)
-          · exact Or.inl h
-        · exact Or.inr ((isState_flat hc).2.2.1.2 h hle)
-    · rw [projR_insert]
-      refine ⟨?_, ?_⟩
-      · rintro f₁ f₂ (h1 | h1) (h2 | h2)
-        · rw [h1] at h2
-          exact (Option.some.inj h2) ▸ F.conflict_irrefl _
-        · exact (hR f₁ h1).1.2.1 _ h2
-        · exact fun hcf => (hR f₂ h2).1.2.1 _ h1 (F.conflict_symm.symm _ _ hcf)
-        · exact (isState_flat hc).2.2.2.1 h1 h2
-      · rintro f f' (h | h) hle
-        · rcases lt_or_eq_of_le hle with hlt | rfl
-          · exact Or.inr ((hR f h).1.2.2 hlt)
-          · exact Or.inl h
-        · exact Or.inr ((isState_flat hc).2.2.2.2 h hle)
-  have htc : t ∉ flat c := by
-    intro hmem
-    cases htL : t.evL with
-    | some x => exact (hL x htL).2 ⟨t, hmem, htL⟩
+/-- Consistency of a pair of tags: no component event consumed twice. -/
+def ParCon₂ (t₁ t₂ : Tag E F) : Prop :=
+  (∀ e, t₁.evL = some e → t₂.evL = some e → t₁ = t₂) ∧
+  (∀ f, t₁.evR = some f → t₂.evR = some f → t₁ = t₂)
+
+/-- Each component event consumed once, and consistent projections. -/
+def ParCon (X : Finset (Tag E F)) : Prop :=
+  (∀ t₁ ∈ X, ∀ t₂ ∈ X, ParCon₂ t₁ t₂) ∧
+  E.toGES.Consistent (projL (X : Set (Tag E F))) ∧
+  F.toGES.Consistent (projR (X : Set (Tag E F)))
+
+/-- Enabling: each consumed event is enabled in its component. -/
+def ParEnable (X : Finset (Tag E F)) (t : Tag E F) : Prop :=
+  (∀ e, t.evL = some e →
+    ∃ Y : Finset E.Event, (∀ e' ∈ Y, e' ∈ projL (X : Set (Tag E F))) ∧ E.enable Y e) ∧
+  (∀ f, t.evR = some f →
+    ∃ Y : Finset F.Event, (∀ f' ∈ Y, f' ∈ projR (X : Set (Tag E F))) ∧ F.enable Y f)
+
+/-- A finite set of events covered by a set of tags is covered by finitely many. -/
+lemma exists_cover_L {s : Set (Tag E F)} (V : Finset E.Event) (hV : ↑V ⊆ projL s) :
+    ∃ W : Finset (Tag E F), ↑W ⊆ s ∧ ↑V ⊆ projL (W : Set (Tag E F)) := by
+  classical
+  have hpick : ∀ v ∈ V, ∃ u, u ∈ s ∧ u.evL = some v := fun v hv => hV (by exact_mod_cast hv)
+  refine ⟨V.attach.image fun v => (hpick v.1 v.2).choose, ?_, ?_⟩
+  · intro u hu
+    obtain ⟨v, -, rfl⟩ := Finset.mem_image.mp (by exact_mod_cast hu)
+    exact (hpick v.1 v.2).choose_spec.1
+  · intro v hv
+    have hv' : v ∈ V := by exact_mod_cast hv
+    refine ⟨(hpick v hv').choose, ?_, (hpick v hv').choose_spec.2⟩
+    have : (hpick v hv').choose ∈ V.attach.image fun z => (hpick z.1 z.2).choose :=
+      Finset.mem_image.mpr ⟨⟨v, hv'⟩, Finset.mem_attach _ _, rfl⟩
+    exact_mod_cast this
+
+lemma exists_cover_R {s : Set (Tag E F)} (V : Finset F.Event) (hV : ↑V ⊆ projR s) :
+    ∃ W : Finset (Tag E F), ↑W ⊆ s ∧ ↑V ⊆ projR (W : Set (Tag E F)) := by
+  classical
+  have hpick : ∀ v ∈ V, ∃ u, u ∈ s ∧ u.evR = some v := fun v hv => hV (by exact_mod_cast hv)
+  refine ⟨V.attach.image fun v => (hpick v.1 v.2).choose, ?_, ?_⟩
+  · intro u hu
+    obtain ⟨v, -, rfl⟩ := Finset.mem_image.mp (by exact_mod_cast hu)
+    exact (hpick v.1 v.2).choose_spec.1
+  · intro v hv
+    have hv' : v ∈ V := by exact_mod_cast hv
+    refine ⟨(hpick v hv').choose, ?_, (hpick v hv').choose_spec.2⟩
+    have : (hpick v hv').choose ∈ V.attach.image fun z => (hpick z.1 z.2).choose :=
+      Finset.mem_image.mpr ⟨⟨v, hv'⟩, Finset.mem_attach _ _, rfl⟩
+    exact_mod_cast this
+
+/-- Consistency of a set of tags gives consistency of its left projection. -/
+lemma con_projL {s : Set (Tag E F)} (h : ∀ W : Finset (Tag E F), ↑W ⊆ s → ParCon W) :
+    E.toGES.Consistent (projL s) := by
+  intro V hV
+  obtain ⟨W, hWs, hVW⟩ := exists_cover_L V hV
+  exact (h W hWs).2.1 V hVW
+
+lemma con_projR {s : Set (Tag E F)} (h : ∀ W : Finset (Tag E F), ↑W ⊆ s → ParCon W) :
+    F.toGES.Consistent (projR s) := by
+  intro V hV
+  obtain ⟨W, hWs, hVW⟩ := exists_cover_R V hV
+  exact (h W hWs).2.2 V hVW
+
+lemma parCon_subset {X Y : Finset (Tag E F)} (h : ParCon Y) (hsub : X ⊆ Y) : ParCon X := by
+  have hL : projL (X : Set (Tag E F)) ⊆ projL (Y : Set (Tag E F)) :=
+    projL_mono (by exact_mod_cast hsub)
+  have hR : projR (X : Set (Tag E F)) ⊆ projR (Y : Set (Tag E F)) :=
+    projR_mono (by exact_mod_cast hsub)
+  exact ⟨fun t₁ h₁ t₂ h₂ => h.1 t₁ (hsub h₁) t₂ (hsub h₂),
+         fun W hW => h.2.1 W (hW.trans hL),
+         fun W hW => h.2.2 W (hW.trans hR)⟩
+
+/-- Parallel composition, as a stable event structure. -/
+@[reducible] def parSES (E F : SES (Action Name)) : SES (Action Name) where
+  Event := Tag E F
+  Con := ParCon
+  enable := ParEnable
+  label := Tag.label
+  con_empty := by
+    refine ⟨fun t ht => absurd ht (Finset.notMem_empty t), ?_, ?_⟩ <;>
+      · intro W hW
+        have hE : W = ∅ := by
+          refine Finset.eq_empty_of_forall_notMem fun z hz => ?_
+          obtain ⟨u, hu, -⟩ := hW (by exact_mod_cast hz)
+          simp at hu
+        first
+          | exact hE ▸ E.con_empty
+          | exact hE ▸ F.con_empty
+  con_subset := parCon_subset
+  enable_mono h hsub _ :=
+    ⟨fun e he => (h.1 e he).imp fun _ hY =>
+       ⟨fun e' he' => projL_mono (by exact_mod_cast hsub) (hY.1 e' he'), hY.2⟩,
+     fun f hf => (h.2 f hf).imp fun _ hY =>
+       ⟨fun f' hf' => projR_mono (by exact_mod_cast hsub) (hY.1 f' hf'), hY.2⟩⟩
+  enable_inter := by
+    classical
+    rintro X Y Z t hX hY hcons hZ
+    have hmemZ : ∀ {u : Tag E F}, u ∈ X → u ∈ Y → u ∈ (Z : Set (Tag E F)) :=
+      fun h₁ h₂ => hZ ▸ ⟨by exact_mod_cast h₁, by exact_mod_cast h₂⟩
+    have hpair : ∀ {t₁ t₂ : Tag E F}, t₁ ∈ X → t₂ ∈ Y → ParCon₂ t₁ t₂ := by
+      intro t₁ t₂ h₁ h₂
+      refine (hcons {t₁, t₂} fun u hu => ?_).1 t₁ (Finset.mem_insert_self _ _) t₂
+        (Finset.mem_insert_of_mem (Finset.mem_singleton_self _))
+      rcases Finset.mem_insert.mp (by exact_mod_cast hu) with rfl | hu'
+      · exact Or.inl (Or.inl (by exact_mod_cast h₁))
+      · exact Or.inl (Or.inr (by rw [Finset.mem_singleton.mp hu']; exact_mod_cast h₂))
+    have hsubL : ∀ {V : Finset E.Event} {W : Finset (Tag E F)},
+        (∀ e' ∈ V, e' ∈ projL (W : Set (Tag E F))) → ↑W ⊆ (X : Set (Tag E F)) →
+        ↑V ⊆ projL ((X : Set (Tag E F)) ∪ ↑Y ∪ {t}) := by
+      intro V W hVW hWX v hv
+      obtain ⟨u, hu, hev⟩ := hVW v (by exact_mod_cast hv)
+      exact ⟨u, Or.inl (Or.inl (hWX hu)), hev⟩
+    constructor
+    · rintro e he
+      obtain ⟨YX, hYX, henX⟩ := hX.1 e he
+      obtain ⟨YY, hYY, henY⟩ := hY.1 e he
+      refine ⟨YX ∩ YY, fun e' he' => ?_,
+        E.enable_inter henX henY (fun V hV => con_projL hcons V (hV.trans ?_))
+          (Finset.coe_inter _ _)⟩
+      · rw [Finset.mem_inter] at he'
+        obtain ⟨u₁, hu₁, hev₁⟩ := hYX e' he'.1
+        obtain ⟨u₂, hu₂, hev₂⟩ := hYY e' he'.2
+        have h₁ : u₁ ∈ X := by exact_mod_cast hu₁
+        have h₂ : u₂ ∈ Y := by exact_mod_cast hu₂
+        exact ⟨u₁, hmemZ h₁ ((hpair h₁ h₂).1 e' hev₁ hev₂ ▸ h₂), hev₁⟩
+      · rintro v ((hv | hv) | hv)
+        · obtain ⟨u, hu, hev⟩ := hYX v hv
+          exact ⟨u, Or.inl (Or.inl hu), hev⟩
+        · obtain ⟨u, hu, hev⟩ := hYY v hv
+          exact ⟨u, Or.inl (Or.inr hu), hev⟩
+        · exact ⟨t, Or.inr rfl, (Set.mem_singleton_iff.mp hv) ▸ he⟩
+    · rintro f hf
+      obtain ⟨YX, hYX, henX⟩ := hX.2 f hf
+      obtain ⟨YY, hYY, henY⟩ := hY.2 f hf
+      refine ⟨YX ∩ YY, fun f' hf' => ?_,
+        F.enable_inter henX henY (fun V hV => con_projR hcons V (hV.trans ?_))
+          (Finset.coe_inter _ _)⟩
+      · rw [Finset.mem_inter] at hf'
+        obtain ⟨u₁, hu₁, hev₁⟩ := hYX f' hf'.1
+        obtain ⟨u₂, hu₂, hev₂⟩ := hYY f' hf'.2
+        have h₁ : u₁ ∈ X := by exact_mod_cast hu₁
+        have h₂ : u₂ ∈ Y := by exact_mod_cast hu₂
+        exact ⟨u₁, hmemZ h₁ ((hpair h₁ h₂).2 f' hev₁ hev₂ ▸ h₂), hev₁⟩
+      · rintro v ((hv | hv) | hv)
+        · obtain ⟨u, hu, hev⟩ := hYX v hv
+          exact ⟨u, Or.inl (Or.inl hu), hev⟩
+        · obtain ⟨u, hu, hev⟩ := hYY v hv
+          exact ⟨u, Or.inl (Or.inr hu), hev⟩
+        · exact ⟨t, Or.inr rfl, (Set.mem_singleton_iff.mp hv) ▸ hf⟩
+
+/-! ## Projections and steps -/
+
+variable {c : Set (Tag E F)}
+
+lemma projL_eq_pmap (c : Set (Tag E F)) :
+    projL c = GES.pmapSet (G := (parSES E F).toGES) (H := E.toGES) Tag.evL c := rfl
+
+lemma projR_eq_pmap (c : Set (Tag E F)) :
+    projR c = GES.pmapSet (G := (parSES E F).toGES) (H := F.toGES) Tag.evR c := rfl
+
+/-- The left projection of a configuration is a configuration. -/
+lemma projL_isConf (hc : (parSES E F).toGES.isConf c) : E.toGES.isConf (projL c) :=
+  GES.isConf_pmap (G := (parSES E F).toGES) (H := E.toGES) Tag.evL
+    (fun {s} h => con_projL (s := s) h)
+    (fun {_ _ x} hX hu => (hX.1 x hu)) hc
+
+lemma projR_isConf (hc : (parSES E F).toGES.isConf c) : F.toGES.isConf (projR c) :=
+  GES.isConf_pmap (G := (parSES E F).toGES) (H := F.toGES) Tag.evR
+    (fun {s} h => con_projR (s := s) h)
+    (fun {_ _ x} hX hu => (hX.2 x hu)) hc
+
+lemma projL_insert {t : Tag E F} {x : E.Event} (hx : t.evL = some x) :
+    projL (c ∪ {t}) = projL c ∪ {x} := by
+  ext e
+  constructor
+  · rintro ⟨u, hu | hu, he⟩
+    · exact Or.inl ⟨u, hu, he⟩
+    · replace hu : u = t := hu
+      subst hu
+      rw [hx] at he
+      exact Or.inr (Option.some.inj he).symm
+  · rintro (⟨u, hu, he⟩ | he)
+    · exact ⟨u, Or.inl hu, he⟩
+    · replace he : e = x := he
+      exact ⟨t, Or.inr rfl, by rw [hx, he]⟩
+
+lemma projL_insert_none {t : Tag E F} (hx : t.evL = none) :
+    projL (c ∪ {t}) = projL c := by
+  ext e
+  constructor
+  · rintro ⟨u, hu | hu, he⟩
+    · exact ⟨u, hu, he⟩
+    · replace hu : u = t := hu
+      subst hu
+      rw [hx] at he
+      exact absurd he (by simp)
+  · rintro ⟨u, hu, he⟩
+    exact ⟨u, Or.inl hu, he⟩
+
+lemma projR_insert {t : Tag E F} {y : F.Event} (hy : t.evR = some y) :
+    projR (c ∪ {t}) = projR c ∪ {y} := by
+  ext f
+  constructor
+  · rintro ⟨u, hu | hu, he⟩
+    · exact Or.inl ⟨u, hu, he⟩
+    · replace hu : u = t := hu
+      subst hu
+      rw [hy] at he
+      exact Or.inr (Option.some.inj he).symm
+  · rintro (⟨u, hu, he⟩ | he)
+    · exact ⟨u, Or.inl hu, he⟩
+    · replace he : f = y := he
+      exact ⟨t, Or.inr rfl, by rw [hy, he]⟩
+
+lemma projR_insert_none {t : Tag E F} (hy : t.evR = none) :
+    projR (c ∪ {t}) = projR c := by
+  ext f
+  constructor
+  · rintro ⟨u, hu | hu, he⟩
+    · exact ⟨u, hu, he⟩
+    · replace hu : u = t := hu
+      subst hu
+      rw [hy] at he
+      exact absurd he (by simp)
+  · rintro ⟨u, hu, he⟩
+    exact ⟨u, Or.inl hu, he⟩
+
+/-- Firing a tag fires an enabled, fresh event of each component it consumes. -/
+lemma enables_projL {t : Tag E F} {x : E.Event}
+    (hins : (parSES E F).toGES.isConf (c ∪ {t}))
+    (hfr : t ∉ c) (hx : t.evL = some x) :
+    E.toGES.isConf (projL c ∪ {x}) ∧ x ∉ projL c := by
+  refine ⟨(projL_insert hx) ▸ projL_isConf hins, ?_⟩
+  rintro ⟨u, hu, hev⟩
+  refine hfr ?_
+  classical
+  have hpair : ParCon ({u, t} : Finset (Tag E F)) := by
+    refine hins.1 {u, t} fun v hv => ?_
+    rcases Finset.mem_insert.mp (by exact_mod_cast hv) with rfl | hv'
+    · exact Or.inl hu
+    · exact (Finset.mem_singleton.mp hv') ▸ Or.inr rfl
+  have : u = t :=
+    (hpair.1 u (Finset.mem_insert_self _ _) t
+      (Finset.mem_insert_of_mem (Finset.mem_singleton_self _))).1 x hev hx
+  exact this ▸ hu
+
+lemma enables_projR {t : Tag E F} {y : F.Event}
+    (hins : (parSES E F).toGES.isConf (c ∪ {t}))
+    (hfr : t ∉ c) (hy : t.evR = some y) :
+    F.toGES.isConf (projR c ∪ {y}) ∧ y ∉ projR c := by
+  refine ⟨(projR_insert hy) ▸ projR_isConf hins, ?_⟩
+  rintro ⟨u, hu, hev⟩
+  refine hfr ?_
+  classical
+  have hpair : ParCon ({u, t} : Finset (Tag E F)) := by
+    refine hins.1 {u, t} fun v hv => ?_
+    rcases Finset.mem_insert.mp (by exact_mod_cast hv) with rfl | hv'
+    · exact Or.inl hu
+    · exact (Finset.mem_singleton.mp hv') ▸ Or.inr rfl
+  have : u = t :=
+    (hpair.1 u (Finset.mem_insert_self _ _) t
+      (Finset.mem_insert_of_mem (Finset.mem_singleton_self _))).2 y hev hy
+  exact this ▸ hu
+
+/-- A fresh tag whose components are enabled extends a configuration. -/
+lemma isConf_insert_tag {t : Tag E F} (hc : (parSES E F).toGES.isConf c)
+    (hL : ∀ x, t.evL = some x → E.toGES.isConf (projL c ∪ {x}) ∧ x ∉ projL c)
+    (hR : ∀ y, t.evR = some y → F.toGES.isConf (projR c ∪ {y}) ∧ y ∉ projR c) :
+    (parSES E F).toGES.isConf (c ∪ {t}) := by
+  classical
+  have hprojL : projL (c ∪ ({t} : Set (Tag E F))) = projL c ∪ {x | t.evL = some x} := by
+    ext e
+    constructor
+    · rintro ⟨u, hu | hu, he⟩
+      · exact Or.inl ⟨u, hu, he⟩
+      · exact Or.inr ((Set.mem_singleton_iff.mp hu) ▸ he)
+    · rintro (⟨u, hu, he⟩ | he)
+      · exact ⟨u, Or.inl hu, he⟩
+      · exact ⟨t, Or.inr rfl, he⟩
+  have hprojR : projR (c ∪ ({t} : Set (Tag E F))) = projR c ∪ {y | t.evR = some y} := by
+    ext f
+    constructor
+    · rintro ⟨u, hu | hu, he⟩
+      · exact Or.inl ⟨u, hu, he⟩
+      · exact Or.inr ((Set.mem_singleton_iff.mp hu) ▸ he)
+    · rintro (⟨u, hu, he⟩ | he)
+      · exact ⟨u, Or.inl hu, he⟩
+      · exact ⟨t, Or.inr rfl, he⟩
+  -- consistency
+  have hconL : E.toGES.Consistent (projL (c ∪ ({t} : Set (Tag E F)))) := by
+    rw [hprojL]
+    cases hev : t.evL with
     | none =>
-      cases htR : t.evR with
-      | some y => exact (hR y htR).2 ⟨t, hmem, htR⟩
-      | none => cases t <;> simp_all [Tag.evL, Tag.evR]
-  have hS : Secured (insert t (flat c)) := Secured.step (secured_flat hfin hc) htc hst
-  refine ⟨primeOf hS (Set.mem_insert _ _), ⟨hc, ?_, past_of_primeOf hc _ rfl⟩, ?_, rfl⟩
-  · intro q' hq' hconf
-    refine hconf (isState_of_subset hst ?_ ?_ ?_)
-    · exact Set.union_subset dc_subset (fun v hv => Set.mem_insert_of_mem _ ⟨q', hq', hv⟩)
-    · intro e e' he hle
-      rw [projL_union] at he ⊢
-      rcases he with h | h
-      · exact Or.inl ((isState_dc hst _).downL h hle)
-      · exact Or.inr (q'.state.downL h hle)
-    · intro f f' hf hle
-      rw [projR_union] at hf ⊢
-      rcases hf with h | h
-      · exact Or.inl ((isState_dc hst _).downR h hle)
-      · exact Or.inr (q'.state.downR h hle)
-  · exact fun hmem => htc ⟨_, hmem, dc_self (Set.mem_insert _ _)⟩
-
-
-/-- Adding an event extends the left projection by its tag's component. -/
-lemma flat_insert_projL {c : Set (ParEvent E F)} {q : ParEvent E F}
-    (hp : (par E F).past q ⊆ c) {x : E.Event} (hx : q.top.evL = some x) :
-    projL (flat (c ∪ {q})) = projL (flat c) ∪ {x} := by
-  rw [flat_insert hp, projL_insert, Set.union_comm]
-  congr 1
-  ext e; rw [hx]; simp [eq_comm]
-
-lemma flat_insert_projL_none {c : Set (ParEvent E F)} {q : ParEvent E F}
-    (hp : (par E F).past q ⊆ c) (hx : q.top.evL = none) :
-    projL (flat (c ∪ {q})) = projL (flat c) := by
-  rw [flat_insert hp, projL_insert]
-  have h : {e | q.top.evL = some e} = (∅ : Set E.Event) := by ext e; rw [hx]; simp
-  rw [h, Set.empty_union]
-
-/-- Adding an event extends the right projection by its tag's component. -/
-lemma flat_insert_projR {c : Set (ParEvent E F)} {q : ParEvent E F}
-    (hp : (par E F).past q ⊆ c) {y : F.Event} (hy : q.top.evR = some y) :
-    projR (flat (c ∪ {q})) = projR (flat c) ∪ {y} := by
-  rw [flat_insert hp, projR_insert, Set.union_comm]
-  congr 1
-  ext f; rw [hy]; simp [eq_comm]
-
-lemma flat_insert_projR_none {c : Set (ParEvent E F)} {q : ParEvent E F}
-    (hp : (par E F).past q ⊆ c) (hy : q.top.evR = none) :
-    projR (flat (c ∪ {q})) = projR (flat c) := by
-  rw [flat_insert hp, projR_insert]
-  have h : {f | q.top.evR = some f} = (∅ : Set F.Event) := by ext f; rw [hy]; simp
-  rw [h, Set.empty_union]
-
-/-- Discharges a component side condition of `exists_event_tag`. -/
-syntax "tag_side" (ppSpace colGt term)? : tactic
-macro_rules
-  | `(tactic| tag_side $h) =>
-      `(tactic| intro _ hh; simp only [Tag.evL, Tag.evR] at hh; cases hh; exact $h)
-  | `(tactic| tag_side) =>
-      `(tactic| intro _ hh; simp [Tag.evL, Tag.evR] at hh)
-
-/-- Component events of a tag that is enabled at `∅` are minimal. -/
-lemma min_of_enables_empty {es : PES (Action Name)} {e : es.Event}
-    (h : Configuration.enables es ∅ e) {e' : es.Event} (hle : e' ≤ e) : e' = e :=
-  (lt_or_eq_of_le hle).elim (fun hlt => (h.2.2 hlt).elim) id
-
+      have : {x | (none : Option E.Event) = some x} = (∅ : Set E.Event) := by ext e; simp
+      rw [this, Set.union_empty]
+      exact (projL_isConf hc).1
+    | some x =>
+      have : {z | (some x : Option E.Event) = some z} = ({x} : Set E.Event) := by
+        ext z; simp [eq_comm]
+      rw [this]
+      exact (hL x hev).1.1
+  have hconR : F.toGES.Consistent (projR (c ∪ ({t} : Set (Tag E F)))) := by
+    rw [hprojR]
+    cases hev : t.evR with
+    | none =>
+      have : {y | (none : Option F.Event) = some y} = (∅ : Set F.Event) := by ext f; simp
+      rw [this, Set.union_empty]
+      exact (projR_isConf hc).1
+    | some y =>
+      have : {z | (some y : Option F.Event) = some z} = ({y} : Set F.Event) := by
+        ext z; simp [eq_comm]
+      rw [this]
+      exact (hR y hev).1.1
+  refine ⟨fun W hW => ⟨fun t₁ h₁ t₂ h₂ => ⟨fun e he₁ he₂ => ?_, fun f hf₁ hf₂ => ?_⟩,
+    fun V hV => hconL V (hV.trans (projL_mono hW)),
+    fun V hV => hconR V (hV.trans (projR_mono hW))⟩, ?_⟩
+  · -- injectivity on the left
+    rcases hW (by exact_mod_cast h₁) with hm₁ | hm₁ <;>
+      rcases hW (by exact_mod_cast h₂) with hm₂ | hm₂
+    · exact (hc.1 {t₁, t₂} (by
+        intro u hu
+        rcases Finset.mem_insert.mp (by exact_mod_cast hu) with rfl | hu'
+        · exact hm₁
+        · exact (Finset.mem_singleton.mp hu') ▸ hm₂)).1 t₁ (Finset.mem_insert_self _ _) t₂
+          (Finset.mem_insert_of_mem (Finset.mem_singleton_self _)) |>.1 e he₁ he₂
+    · exact absurd ⟨t₁, hm₁, he₁⟩ ((hL e ((Set.mem_singleton_iff.mp hm₂) ▸ he₂)).2)
+    · exact absurd ⟨t₂, hm₂, he₂⟩ ((hL e ((Set.mem_singleton_iff.mp hm₁) ▸ he₁)).2)
+    · rw [Set.mem_singleton_iff] at hm₁ hm₂; rw [hm₁, hm₂]
+  · -- injectivity on the right
+    rcases hW (by exact_mod_cast h₁) with hm₁ | hm₁ <;>
+      rcases hW (by exact_mod_cast h₂) with hm₂ | hm₂
+    · exact (hc.1 {t₁, t₂} (by
+        intro u hu
+        rcases Finset.mem_insert.mp (by exact_mod_cast hu) with rfl | hu'
+        · exact hm₁
+        · exact (Finset.mem_singleton.mp hu') ▸ hm₂)).1 t₁ (Finset.mem_insert_self _ _) t₂
+          (Finset.mem_insert_of_mem (Finset.mem_singleton_self _)) |>.2 f hf₁ hf₂
+    · exact absurd ⟨t₁, hm₁, hf₁⟩ ((hR f ((Set.mem_singleton_iff.mp hm₂) ▸ hf₂)).2)
+    · exact absurd ⟨t₂, hm₂, hf₂⟩ ((hR f ((Set.mem_singleton_iff.mp hm₁) ▸ hf₁)).2)
+    · rw [Set.mem_singleton_iff] at hm₁ hm₂; rw [hm₁, hm₂]
+  · -- securedness
+    have hmono : ∀ {u : Tag E F}, u ∈ c →
+        ∃ n, u ∈ (parSES E F).secApprox (c ∪ ({t} : Set (Tag E F))) n := by
+      intro u hu
+      obtain ⟨n, hn⟩ := hc.2 u hu
+      exact ⟨n, GES.secApprox_mono_set Set.subset_union_left n hn⟩
+    rintro u (hu | hu)
+    · exact hmono hu
+    · replace hu : u = t := hu
+      subst hu
+      -- cover each component's enabling set by tags of `c`
+      obtain ⟨WL, hWLc, hWLen⟩ : ∃ W : Finset (Tag E F), ↑W ⊆ c ∧
+          ∀ x, u.evL = some x → ∃ Y : Finset E.Event,
+            (∀ e' ∈ Y, e' ∈ projL (W : Set (Tag E F))) ∧ E.enable Y x := by
+        cases hev : u.evL with
+        | none => exact ⟨∅, by simp, fun x hx => absurd hx (by simp)⟩
+        | some x =>
+          obtain ⟨k, hk⟩ : ∃ k, E.rank (projL c ∪ {x}) x = k + 1 := by
+            have : E.rank (projL c ∪ {x}) x ≠ 0 := by
+              intro h0
+              have hmem := GES.rank_mem ((hL x hev).1.2 x (Or.inr rfl))
+              rw [h0] at hmem
+              exact hmem
+            exact ⟨E.rank (projL c ∪ {x}) x - 1, by omega⟩
+          obtain ⟨-, Y, hYsub, hYen⟩ := hk ▸ GES.rank_mem ((hL x hev).1.2 x (Or.inr rfl))
+          have hYc : ↑Y ⊆ projL c := by
+            intro y hy
+            rcases GES.secApprox_subset _ (hYsub hy) with h | h
+            · exact h
+            · exact absurd (hk ▸ Nat.lt_succ_of_le (GES.rank_le (hYsub hy)) :
+                E.rank (projL c ∪ {x}) y < E.rank (projL c ∪ {x}) x)
+                (by rw [Set.mem_singleton_iff.mp h]; omega)
+          obtain ⟨W, hWc, hWcov⟩ := exists_cover_L Y hYc
+          exact ⟨W, hWc, fun x' hx' => ⟨Y, fun e' he' => hWcov (by exact_mod_cast he'),
+            (Option.some.inj hx') ▸ hYen⟩⟩
+      obtain ⟨WR, hWRc, hWRen⟩ : ∃ W : Finset (Tag E F), ↑W ⊆ c ∧
+          ∀ y, u.evR = some y → ∃ Y : Finset F.Event,
+            (∀ f' ∈ Y, f' ∈ projR (W : Set (Tag E F))) ∧ F.enable Y y := by
+        cases hev : u.evR with
+        | none => exact ⟨∅, by simp, fun y hy => absurd hy (by simp)⟩
+        | some y =>
+          obtain ⟨k, hk⟩ : ∃ k, F.rank (projR c ∪ {y}) y = k + 1 := by
+            have : F.rank (projR c ∪ {y}) y ≠ 0 := by
+              intro h0
+              have hmem := GES.rank_mem ((hR y hev).1.2 y (Or.inr rfl))
+              rw [h0] at hmem
+              exact hmem
+            exact ⟨F.rank (projR c ∪ {y}) y - 1, by omega⟩
+          obtain ⟨-, Y, hYsub, hYen⟩ := hk ▸ GES.rank_mem ((hR y hev).1.2 y (Or.inr rfl))
+          have hYc : ↑Y ⊆ projR c := by
+            intro z hz
+            rcases GES.secApprox_subset _ (hYsub hz) with h | h
+            · exact h
+            · exact absurd (hk ▸ Nat.lt_succ_of_le (GES.rank_le (hYsub hz)) :
+                F.rank (projR c ∪ {y}) z < F.rank (projR c ∪ {y}) y)
+                (by rw [Set.mem_singleton_iff.mp h]; omega)
+          obtain ⟨W, hWc, hWcov⟩ := exists_cover_R Y hYc
+          exact ⟨W, hWc, fun y' hy' => ⟨Y, fun f' hf' => hWcov (by exact_mod_cast hf'),
+            (Option.some.inj hy') ▸ hYen⟩⟩
+      obtain ⟨N, hN⟩ := GES.exists_bound (G := (parSES E F).toGES) (X := WL ∪ WR)
+        fun g hg => by
+          rcases Finset.mem_union.mp hg with h | h
+          · exact hmono (hWLc (by exact_mod_cast h))
+          · exact hmono (hWRc (by exact_mod_cast h))
+      refine ⟨N + 1, Or.inr rfl, WL ∪ WR, hN, fun x hx => ?_, fun y hy => ?_⟩
+      · exact (hWLen x hx).imp fun _ hY =>
+          ⟨fun e' he' => projL_mono (by exact_mod_cast Finset.subset_union_left)
+            (hY.1 e' he'), hY.2⟩
+      · exact (hWRen y hy).imp fun _ hY =>
+          ⟨fun f' hf' => projR_mono (by exact_mod_cast Finset.subset_union_right)
+            (hY.1 f' hf'), hY.2⟩
 
 end CCS
