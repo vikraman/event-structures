@@ -3,14 +3,10 @@ import Mathlib.Order.Lattice.Nat
 import Mathlib.Order.Preorder.Finite
 import Mathlib.Order.Minimal
 
-/-! # General event structures (Winskel)
+/-! # General event structures
 
-Consistency is n-ary and causality disjunctive: a finite consistent set `X`
-*enables* `e`. A configuration is a consistent set every event of which is
-reached from `∅` by finitely many enablings inside it.
-
-The work here is deriving the `ConfFamily.secured` axiom: an event of the gap
-of greatest securing rank can be removed. -/
+Consistency is n-ary and causality is disjunctive.
+-/
 
 /-- Events, an n-ary consistency predicate, and an enabling relation. -/
 structure GES (Label : Type*) where
@@ -26,10 +22,13 @@ namespace GES
 
 variable {L : Type*} (G : GES L)
 
+/-- Notation for the enabling relation. -/
+local infix:50 " ⊢ " => G.enable
+
 /-- Events of `x` secured in at most `n` steps. -/
 def secApprox (x : Set G.Event) : ℕ → Set G.Event
   | 0 => ∅
-  | n + 1 => {e ∈ x | ∃ X : Finset G.Event, ↑X ⊆ secApprox x n ∧ G.enable X e}
+  | n + 1 => {e ∈ x | ∃ X : Finset G.Event, ↑X ⊆ secApprox x n ∧ X ⊢ e}
 
 variable {G}
 
@@ -92,7 +91,7 @@ lemma exists_bound {x : Set G.Event} {X : Finset G.Event}
 
 /-- Every event of a configuration has an enabling set inside it. -/
 lemma exists_enabling {x : Set G.Event} (hx : G.isConf x) {e : G.Event} (he : e ∈ x) :
-    ∃ Y : Finset G.Event, G.enable Y e ∧ ↑Y ⊆ x := by
+    ∃ Y : Finset G.Event, (Y ⊢ e) ∧ ↑Y ⊆ x := by
   obtain ⟨n, hn⟩ := hx.2 e he
   cases n with
   | zero => exact hn.elim
@@ -119,7 +118,7 @@ lemma isConf_secured {x y : Set G.Event} (hx : G.isConf x) (hy : G.isConf y)
   obtain ⟨e, hmax⟩ := hfin.exists_maximalFor (G.rank x) _ hDne
   have heD : e ∈ x \ y := hmax.1
   have hemax : ∀ f ∈ x \ y, G.rank x f ≤ G.rank x e := fun _ hf => not_lt.mp (hmax.not_gt hf)
-  -- the induction: every `f ∈ x` other than `e` is secured without `e`
+  -- induction: every `f ∈ x` other than `e` is secured without `e`
   have key : ∀ n f, f ∈ x → f ≠ e → G.rank x f = n → ∃ m, f ∈ G.secApprox (x \ {e}) m := by
     intro n
     induction n using Nat.strong_induction_on with
@@ -202,8 +201,7 @@ lemma pmapSet_mono {L' : Type*} {G : GES L} {H : GES L'}
   fun _ ⟨u, hu, hx⟩ => ⟨u, h hu, hx⟩
 
 /-- Configurations transfer along a partial map that carries enabling sets to
-enabling sets. This is the one securedness induction the whole CCS semantics
-needs: every projection of every construction is an instance of it. -/
+enabling sets. -/
 lemma isConf_pmap {L' : Type*} {G : GES L} {H : GES L'}
     (φ : G.Event → Option H.Event)
     (hcon : ∀ {c : Set G.Event}, G.Consistent c → H.Consistent (pmapSet φ c))
@@ -237,8 +235,7 @@ lemma isConf_pmap {L' : Type*} {G : GES L} {H : GES L'}
   exact key _ u hu rfl x hx
 
 /-- Conversely, an event whose image is enabled extends a configuration, provided
-enabling sets pull back. The dual of `isConf_pmap`, and the only other
-securedness induction the semantics needs. -/
+enabling sets pull back. -/
 lemma isConf_insert_pmap {L' : Type*} {G : GES L} {H : GES L'}
     (φ : G.Event → Option H.Event)
     {c : Set G.Event} {u : G.Event} {x : H.Event} (hc : G.isConf c) (hφ : φ u = some x)
