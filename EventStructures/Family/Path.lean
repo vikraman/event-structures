@@ -125,11 +125,10 @@ lemma execList_target_eq_union {c₁ c₂ : Conf F} {t : List F.Event}
     simp
   | cons e h hnext ih =>
     ext x
-    simp [nextConf, ih, List.mem_cons, Set.mem_union, Set.mem_setOf_eq]
+    simp [nextConf, ih, List.mem_cons, Set.mem_union]
     tauto
 
-/-- Lift an exec list from a smaller configuration to a larger one,
-    assuming monotone enabling under subset. -/
+/-- Lift an exec list from a smaller configuration to a larger one. -/
 noncomputable def execList_lift {c_small c_large c_target : Conf F} {t : List F.Event}
     (hsub : c_small.1 ⊆ c_large.1)
     (hmono : ∀ {c₁ c₂ : Conf F} {e : F.Event}, c₁.1 ⊆ c₂.1 → c₁.1 ⊢ e → c₂.1 ⊢ e)
@@ -210,25 +209,26 @@ def PathEquiv {c₁ c₂ : Conf F} (p₁ p₂ : Path F c₁ c₂) : Prop :=
 local infixr:60 " ≈ₚ " => PathEquiv F
 
 /-- Path equivalence is reflexive. -/
-lemma pathEquiv_refl {c₁ c₂ : Conf F} : Reflexive (PathEquiv (F := F) (c₁ := c₁) (c₂ := c₂)) :=
-  (pathSetoid F c₁ c₂).iseqv.refl
+instance pathEquiv_refl {c₁ c₂ : Conf F} :
+    Std.Refl (PathEquiv (F := F) (c₁ := c₁) (c₂ := c₂)) :=
+  ⟨(pathSetoid F c₁ c₂).iseqv.refl⟩
 
 /-- Path equivalence is symmetric. -/
-lemma pathEquiv_symm {c₁ c₂ : Conf F} :
-    Symmetric (PathEquiv (F := F) (c₁ := c₁) (c₂ := c₂)) :=
-  fun _ _ => (pathSetoid F c₁ c₂).iseqv.symm
+instance pathEquiv_symm {c₁ c₂ : Conf F} :
+    Std.Symm (PathEquiv (F := F) (c₁ := c₁) (c₂ := c₂)) :=
+  ⟨fun _ _ => (pathSetoid F c₁ c₂).iseqv.symm⟩
 
 /-- Path equivalence is transitive. -/
-lemma pathEquiv_trans {c₁ c₂ : Conf F} :
-    Transitive (PathEquiv (F := F) (c₁ := c₁) (c₂ := c₂)) :=
-  fun _ _ _ => (pathSetoid F c₁ c₂).iseqv.trans
+instance pathEquiv_trans {c₁ c₂ : Conf F} :
+    IsTrans (Path F c₁ c₂) (PathEquiv (F := F) (c₁ := c₁) (c₂ := c₂)) :=
+  ⟨fun _ _ _ => (pathSetoid F c₁ c₂).iseqv.trans⟩
 
 /-- Path equivalence is an equivalence relation. -/
-instance pathEquivEquivalence (c₁ c₂ : Conf F) :
+lemma pathEquivEquivalence (c₁ c₂ : Conf F) :
     Equivalence (PathEquiv (F := F) (c₁ := c₁) (c₂ := c₂)) where
-  refl := pathEquiv_refl F
-  symm h := pathEquiv_symm F h
-  trans h₁ h₂ := pathEquiv_trans F h₁ h₂
+  refl := (pathEquiv_refl F).refl
+  symm h := (pathEquiv_symm F).symm _ _ h
+  trans h₁ h₂ := _root_.trans h₁ h₂
 
 /-- Trace of path composition is concatenation of traces. -/
 lemma trace_comp {c₁ c₂ c₃ : Conf F} (p₁₂ : Path F c₁ c₂) (p₂₃ : Path F c₂ c₃) :
@@ -283,10 +283,7 @@ lemma async_path_id_comp {c₁ c₂ : Conf F} (p : Async F c₁ c₂) :
 lemma async_path_comp_id {c₁ c₂ : Conf F} (p : Async F c₁ c₂) :
     async_path_comp F p (async_path_id F c₂) = p := by
   induction p using Quotient.ind
-  unfold async_path_comp async_path_id mk Path.path_id
-  simp only [Quotient.lift₂_mk]
-  congr 1
-  exact Path.path_comp_id F _
+  exact congrArg (mk F) (Path.path_comp_id F _)
 
 /-- Associativity law for asynchronous path composition. -/
 lemma assoc {c₁ c₂ c₃ c₄ : Conf F}
@@ -296,7 +293,7 @@ lemma assoc {c₁ c₂ c₃ c₄ : Conf F}
   induction p₁₂ using Quotient.ind
   induction p₂₃ using Quotient.ind
   induction p₃₄ using Quotient.ind
-  simp only [async_path_comp, Quotient.lift₂_mk]
+  simp only [async_path_comp]
   apply Quotient.sound
   rw [Path.path_comp_assoc]
 

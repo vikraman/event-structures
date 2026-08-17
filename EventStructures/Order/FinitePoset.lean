@@ -15,7 +15,7 @@ lemma Finset.exists_minimal_of_nonempty {α : Type*} [PartialOrder α] [WellFoun
   intro z ih hz
   by_cases hmin : ∀ y ∈ T, y < z → False
   · exact ⟨z, hz, hmin, le_rfl⟩
-  · push_neg at hmin
+  · push Not at hmin
     obtain ⟨y, hyT, hy_lt, _⟩ := hmin
     obtain ⟨m, hmT, hmmin, hm_le⟩ := ih y hy_lt hyT
     exact ⟨m, hmT, hmmin, le_trans hm_le (le_of_lt hy_lt)⟩

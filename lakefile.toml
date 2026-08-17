@@ -7,12 +7,8 @@ defaultTargets = ["EventStructures"]
 pp.unicode.fun = true                 # pretty-prints `fun a ↦ b`
 relaxedAutoImplicit = false
 weak.linter.mathlibStandardSet = true
+weak.linter.style.header = false        # mathlib copyright header convention
 maxSynthPendingDepth = 3
-
-[[require]]
-name = "mathlib"
-scope = "leanprover-community"
-rev = "v4.27.0"
 
 [[require]]
 name = "checkdecls"
@@ -22,7 +18,12 @@ rev = "3d425859e73fcfbef85b9638c2a91708ef4a22d4"
 [[require]]
 name = "«doc-gen4»"
 git = "https://github.com/leanprover/doc-gen4"
-rev = "437bd7d8c71e5cc00132d66eaf96f2acc0382c1c"
+rev = "main"
+
+[[require]]
+name = "mathlib"
+scope = "leanprover-community"
+rev = "v4.33.0"
 
 [[lean_lib]]
 name = "EventStructures"

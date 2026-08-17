@@ -72,7 +72,9 @@ lemma resid_res {P : Process (Option Name)} (c : Set (semantics (.res P)).Event)
   | _, .sum P Q => resid_sum_none (by simp) (by simp)
   | _, .par P Q => by
       rw [resid_par]
-      have h : flat (∅ : Set (semantics (.par P Q)).Event) = ∅ := by ext t; simp [flat]
+      have h : flat (∅ : Set (semantics (.par P Q)).Event) = ∅ := by
+        ext t; simp only [flat, Set.mem_empty_iff_false, Set.mem_ofPred_eq, iff_false]
+        exact fun ⟨_, hx, _⟩ => hx
       rw [h, projL_empty, projR_empty, resid_empty P, resid_empty Q]
   | _, .res P => by
       rw [resid_res]
@@ -177,14 +179,14 @@ lemma den_to_op : ∀ {Name : Type u} (P : Process Name) (c : Set (semantics P).
         have hevL : q.top.evL = some x := by rw [htop]; rfl
         have hevR : q.top.evR = (none : Option (semantics Q).Event) := by rw [htop]; rfl
         obtain ⟨hxen, hxfr⟩ := comp_enables_L hc hen hfr hevL
-        rw [resid_par, resid_par, flat_insert_projL hen.2.2 hevL,
+        erw [resid_par, resid_par, flat_insert_projL hen.2.2 hevL,
           flat_insert_projR_none hen.2.2 hevR, hlbl, htop]
         exact Step.parL (den_to_op P _ x hXfin hXconf hxen hxfr)
       | right y =>
         have hevL : q.top.evL = (none : Option (semantics P).Event) := by rw [htop]; rfl
         have hevR : q.top.evR = some y := by rw [htop]; rfl
         obtain ⟨hyen, hyfr⟩ := comp_enables_R hc hen hfr hevR
-        rw [resid_par, resid_par, flat_insert_projL_none hen.2.2 hevL,
+        erw [resid_par, resid_par, flat_insert_projL_none hen.2.2 hevL,
           flat_insert_projR hen.2.2 hevR, hlbl, htop]
         exact Step.parR (den_to_op Q _ y hYfin hYconf hyen hyfr)
       | sync x y hpf =>
@@ -193,7 +195,7 @@ lemma den_to_op : ∀ {Name : Type u} (P : Process Name) (c : Set (semantics P).
         obtain ⟨hxen, hxfr⟩ := comp_enables_L hc hen hfr hevL
         obtain ⟨hyen, hyfr⟩ := comp_enables_R hc hen hfr hevR
         obtain ⟨a, hax, hay⟩ := hpf
-        rw [resid_par, resid_par, flat_insert_projL hen.2.2 hevL,
+        erw [resid_par, resid_par, flat_insert_projL hen.2.2 hevL,
           flat_insert_projR hen.2.2 hevR, hlbl, htop]
         exact Step.parSync (a := a) (hax ▸ den_to_op P _ x hXfin hXconf hxen hxfr)
           (hay ▸ den_to_op Q _ y hYfin hYconf hyen hyfr)
@@ -345,7 +347,7 @@ lemma op_to_den : ∀ {Name : Type u} (P : Process Name) (c : Set (semantics P).
         refine ⟨q, hqen, hqfr, ?_, ?_⟩
         · change q.top.label = α
           rw [hqtop]; exact hxlbl
-        · rw [resid_par, flat_insert_projL hqen.2.2 hevL,
+        · erw [resid_par, flat_insert_projL hqen.2.2 hevL,
             flat_insert_projR_none hqen.2.2 hevR, ← hxQ]
       | @parR _ _ _ _ B' hs =>
         obtain ⟨y, hyen, hyfr, hylbl, hyQ⟩ := op_to_den Q _ α B' hYfin hYconf hs
@@ -356,7 +358,7 @@ lemma op_to_den : ∀ {Name : Type u} (P : Process Name) (c : Set (semantics P).
         refine ⟨q, hqen, hqfr, ?_, ?_⟩
         · change q.top.label = α
           rw [hqtop]; exact hylbl
-        · rw [resid_par, flat_insert_projL_none hqen.2.2 hevL,
+        · erw [resid_par, flat_insert_projL_none hqen.2.2 hevL,
             flat_insert_projR hqen.2.2 hevR, ← hyQ]
       | @parSync _ _ a _ _ _ hs1 hs2 =>
         obtain ⟨x, hxen, hxfr, hxlbl, hxQ⟩ := op_to_den P _ _ _ hXfin hXconf hs1
@@ -369,7 +371,7 @@ lemma op_to_den : ∀ {Name : Type u} (P : Process Name) (c : Set (semantics P).
         refine ⟨q, hqen, hqfr, ?_, ?_⟩
         · change q.top.label = Action.tau
           rw [hqtop]; rfl
-        · rw [resid_par, flat_insert_projL hqen.2.2 hevL,
+        · erw [resid_par, flat_insert_projL hqen.2.2 hevL,
             flat_insert_projR hqen.2.2 hevR, ← hxQ, ← hyQ]
 
 /-- Coincidence of the two semantics, via the residual process. -/
