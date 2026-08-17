@@ -11,6 +11,8 @@ import EventStructures.Family.LTSI
 import EventStructures.Order.FinitePoset
 import EventStructures.Family.Rollback
 import EventStructures.Prime.Rollback
+import EventStructures.General.Basic
+import EventStructures.General.Stable
 import EventStructures.Stable.Basic
 import EventStructures.Stable.Rollback
 import EventStructures.Stable.LTSI
