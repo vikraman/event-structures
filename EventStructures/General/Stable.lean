@@ -2,12 +2,9 @@ import EventStructures.General.Basic
 
 /-! # Stable event structures
 
-Winskel's stability axiom: two enabling sets for the same event, jointly
+Stability axiom: two enabling sets for the same event, jointly
 consistent with it, intersect in an enabling set. Causality is still
-disjunctive, but each event acquires a least history inside a configuration.
-
-The axiom is stated against an arbitrary `Z` coercing to `↑X ∩ ↑Y` so that
-`GES` needs no decidable equality. -/
+disjunctive, but each event acquires a least history inside a configuration. -/
 
 /-- A general event structure whose enablings are closed under intersection. -/
 structure SES (Label : Type*) extends GES Label where
@@ -17,6 +14,9 @@ structure SES (Label : Type*) extends GES Label where
 namespace SES
 
 variable {L : Type*} (S : SES L)
+
+/-- Notation for the enabling relation. -/
+local infix:50 " ⊢ " => S.enable
 
 /-- The configuration family of a stable event structure. -/
 @[reducible] def toFamily : ConfFamily L := S.toGES.toFamily
@@ -59,7 +59,7 @@ lemma inter_isConf {x y z : Set S.Event} (hx : S.toGES.isConf x) (hy : S.toGES.i
           · exact hxz (hXx hw)
           · exact hyz (hYy hw)
           · exact hxz (Set.mem_singleton_iff.mp hw ▸ hex)))
-      have hen : S.enable (X ∩ Y) e :=
+      have hen : (X ∩ Y) ⊢ e :=
         S.enable_inter hXen hYen hcons (by simp)
       obtain ⟨N, hN⟩ := exists_bound (x := x ∩ y) fun g hg => by
         rw [Finset.mem_inter] at hg
@@ -68,15 +68,14 @@ lemma inter_isConf {x y z : Set S.Event} (hx : S.toGES.isConf x) (hy : S.toGES.i
       exact ⟨N + 1, ⟨hex, hey⟩, X ∩ Y, hN, hen⟩
   exact fun e he => key _ e he.1 he.2 rfl
 
-/-- Inside a bound `z`, an event has a least enabling set: the enabling subsets
-of any one witness are finite in number and closed under intersection. -/
+/-- Inside a bound `z`, an event has a least enabling set. -/
 lemma exists_least_enabling {z : Set S.Event} (hz : S.toGES.isConf z) {e : S.Event}
-    {X₀ : Finset S.Event} (hX₀ : S.enable X₀ e) (hX₀z : ↑X₀ ⊆ z) (hez : e ∈ z) :
-    ∃ M : Finset S.Event, S.enable M e ∧ M ⊆ X₀ ∧
-      ∀ Y : Finset S.Event, S.enable Y e → ↑Y ⊆ z → M ⊆ Y := by
+    {X₀ : Finset S.Event} (hX₀ : X₀ ⊢ e) (hX₀z : ↑X₀ ⊆ z) (hez : e ∈ z) :
+    ∃ M : Finset S.Event, (M ⊢ e) ∧ M ⊆ X₀ ∧
+      ∀ Y : Finset S.Event, (Y ⊢ e) → ↑Y ⊆ z → M ⊆ Y := by
   classical
   have hmemP : ∀ {W : Finset S.Event},
-      W ∈ X₀.powerset.filter (fun W => S.enable W e) ↔ W ⊆ X₀ ∧ S.enable W e := by
+      W ∈ X₀.powerset.filter (fun W => S.enable W e) ↔ W ⊆ X₀ ∧ (W ⊢ e) := by
     simp [Finset.mem_filter, Finset.mem_powerset]
   obtain ⟨M, hM, hmin⟩ :=
     (X₀.powerset.filter (fun W => S.enable W e)).exists_min_image Finset.card
@@ -89,7 +88,7 @@ lemma exists_least_enabling {z : Set S.Event} (hz : S.toGES.isConf z) {e : S.Eve
       · exact hX₀z (hMX₀ hw)
       · exact hYz hw
       · exact Set.mem_singleton_iff.mp hw ▸ hez))
-  have hen : S.enable (M ∩ Y) e := S.enable_inter hMen hYen hcons (by simp)
+  have hen : (M ∩ Y) ⊢ e := S.enable_inter hMen hYen hcons (by simp)
   have hcard := hmin (M ∩ Y) (hmemP.mpr ⟨(Finset.inter_subset_left).trans hMX₀, hen⟩)
   exact (Finset.eq_of_subset_of_card_le Finset.inter_subset_left hcard) ▸
     Finset.inter_subset_right
