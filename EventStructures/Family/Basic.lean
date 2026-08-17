@@ -6,11 +6,9 @@ import Mathlib.Order.Basic
 
 /-! # Configuration families
 
-The shared layer for prime, stable and general event structures. Paths, traces,
-computations, rollback and replay are stated once here.
-
-Enabling is *defined* as `Config c ∧ Config (c ∪ {e})`, so extending a
-configuration by an enabled event is a projection rather than a theorem. -/
+A configuration family is a collection of sets of events that are considered to be configurations.
+Paths, traces, computations, rollback and replay are stated at the level of configuration families.
+-/
 
 /-- Events, the sets of them that count as configurations, and labels. -/
 structure ConfFamily (Label : Type*) where
@@ -55,8 +53,8 @@ lemma union_pair_comm {α : Type*} (s : Set α) (a b : α) :
     s ∪ {a} ∪ {b} = s ∪ {b} ∪ {a} := by
   ext x; simp only [Set.mem_union, Set.mem_singleton_iff]; tauto
 
-/-- Coinitial independence: separately and jointly extendable. Derived from
-`Config`; it is relative to `c`, since in a general event structure two events
+/-- Coinitial independence: separately and jointly extendable.
+It is relative to `c`, since in a general event structure two events
 may be independent at one configuration and not at another. -/
 def Indep (c : Set F.Event) (e₁ e₂ : F.Event) : Prop :=
   e₁ ≠ e₂ ∧ F.enables c e₁ ∧ F.enables c e₂ ∧ F.Config (c ∪ {e₁} ∪ {e₂})
